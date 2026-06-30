@@ -264,6 +264,7 @@ const leadPriorities: Array<LeadPriority | "All"> = ["All", "High", "Medium", "L
 const leadServices: Array<LeadServiceInterest | "All"> = ["All", "New website", "Redesign", "SEO / audit", "Care plan", "Ecommerce"];
 
 const defaultLeadResult: LeadsResult = { leads: [], latestImport: null, source: "demo" };
+const leadsPageSizeOptions = [10, 25, 50];
 
 function formatCurrency(value: number | null) {
   if (!value) return "-";
@@ -538,12 +539,76 @@ function InsightList({ title, items }: { title: string; items: Array<{ id: strin
   );
 }
 
+function LeadsTablePagination({
+  currentPage,
+  pageSize,
+  totalRows,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  currentPage: number;
+  pageSize: number;
+  totalRows: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const startRow = totalRows === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endRow = Math.min(currentPage * pageSize, totalRows);
+
+  return (
+    <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-gray-500">
+        Showing <span className="font-medium text-gray-800">{startRow}</span>-<span className="font-medium text-gray-800">{endRow}</span> of{" "}
+        <span className="font-medium text-gray-800">{totalRows}</span> leads
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-gray-500">
+          Rows
+          <select
+            className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 outline-none transition focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+            value={pageSize}
+            onChange={(event) => onPageSizeChange(Number(event.target.value))}
+          >
+            {leadsPageSizeOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-center gap-2">
+          <button
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD] disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => onPageChange(currentPage - 1)}
+          >
+            Previous
+          </button>
+          <span className="min-w-20 text-center text-sm font-medium text-gray-700">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD] disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => onPageChange(currentPage + 1)}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LeadsPage() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<LeadSource | "All">("All");
   const [stage, setStage] = useState<LeadStage | "All">("All");
   const [priority, setPriority] = useState<LeadPriority | "All">("All");
   const [service, setService] = useState<LeadServiceInterest | "All">("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [leadResult, setLeadResult] = useState<LeadsResult>(defaultLeadResult);
   const [isLoading, setIsLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -569,6 +634,10 @@ export function LeadsPage() {
   const metrics = useMemo(() => buildLeadMetrics(leads), [leads]);
   const sourceStats = useMemo(() => buildLeadSourceStats(leads), [leads]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [priority, query, service, source, stage]);
+
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return leads.filter((lead) => {
@@ -580,6 +649,13 @@ export function LeadsPage() {
       return (!normalized || matchesQuery) && matchesSource && matchesStage && matchesPriority && matchesService;
     });
   }, [leads, priority, query, service, source, stage]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedRows = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return rows.slice(start, start + pageSize);
+  }, [pageSize, rows, safeCurrentPage]);
 
   const followUps = useMemo(() => leads.filter((lead) => lead.next_action).slice(0, 4), [leads]);
   const hotProspects = useMemo(
@@ -730,7 +806,19 @@ export function LeadsPage() {
           {isLoading ? (
             <EmptyState title="Loading leads" description="Lead records are being prepared from Supabase or the local demo fallback." />
           ) : (
-            <AdminTable columns={leadTableColumns} rows={rows} getRowKey={(lead) => lead.id} emptyMessage="No leads found for the selected filters." />
+            <>
+              <AdminTable columns={leadTableColumns} rows={paginatedRows} getRowKey={(lead) => lead.id} emptyMessage="No leads found for the selected filters." />
+              <LeadsTablePagination
+                currentPage={safeCurrentPage}
+                pageSize={pageSize}
+                totalRows={rows.length}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setPageSize(nextPageSize);
+                  setCurrentPage(1);
+                }}
+              />
+            </>
           )}
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
