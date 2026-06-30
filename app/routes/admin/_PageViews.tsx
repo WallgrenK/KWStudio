@@ -1,0 +1,1208 @@
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link } from "react-router";
+import { AdminShell } from "~/components/admin/AdminShell";
+import { AdminTable, type AdminTableColumn } from "~/components/admin/AdminTable";
+import { EmptyState } from "~/components/admin/EmptyState";
+import { FilterBar } from "~/components/admin/FilterBar";
+import { FormCard } from "~/components/admin/FormCard";
+import { HubCard } from "~/components/admin/HubCard";
+import { KanbanBoard } from "~/components/admin/KanbanBoard";
+import { MiniMetricCard } from "~/components/admin/MiniMetricCard";
+import { QuickActions } from "~/components/admin/QuickActions";
+import { ScoreCard } from "~/components/admin/ScoreCard";
+import { StatusBadge } from "~/components/admin/StatusBadge";
+import { TaskList } from "~/components/admin/TaskList";
+import { Timeline } from "~/components/admin/Timeline";
+import {
+  aiPinnedTools,
+  aiQuickPrompts,
+  aiRecentTools,
+  adminLeads,
+  adminProjects,
+  adminTasks,
+  aiTools,
+  analyses,
+  bookkeepingTasks,
+  calendarEvents,
+  clientHealthMetrics,
+  clients,
+  dashboardFinanceMetrics,
+  dashboardTasks,
+  emailMessages,
+  expenses,
+  featuredClients,
+  financeActivity,
+  financeMetrics,
+  files,
+  followUps,
+  invoices,
+  leadDashboardStates,
+  leadInsights,
+  leadStageMetrics,
+  payments,
+  pipelineDeals,
+  projectStatusMetrics,
+  projectTimeline,
+  proposals,
+  prospects,
+  quickActions,
+  recentWebsiteScans,
+  scbImportStatus,
+  scbLeadFinderFilters,
+  seoItems,
+  settingsProfile,
+  upcomingMeetings,
+  uptimeMonitors,
+  websiteHealthMetrics,
+  websiteReports,
+  websiteScores,
+  type AdminLead,
+  type AdminProject,
+  type Client,
+  type Expense,
+  type Invoice,
+  type LeadPriority,
+  type LeadServiceInterest,
+  type LeadSource,
+  type LeadStage,
+  type Payment,
+  type Proposal,
+  type WebsiteReport,
+} from "~/data/admin";
+import { isSupabaseConfigured } from "~/lib/supabase";
+import { auditLeadWebsite, discoverScbLeads, refreshLeadScore, type ScbDiscoverFilters } from "~/services/kwstudioApi";
+import {
+  getLeads,
+  mapLeadPriority,
+  mapLeadStage,
+  updateLeadStatus,
+  type LeadWithCompanyAndAudit,
+  type LeadsResult,
+} from "~/services/leads";
+
+const leadColumns: Array<AdminTableColumn<AdminLead>> = [
+  {
+    key: "lead",
+    header: "Lead",
+    render: (lead) => (
+      <div>
+        <strong className="block font-medium text-gray-800">{lead.name}</strong>
+        <span className="mt-0.5 block text-sm text-gray-500">{lead.company}</span>
+      </div>
+    ),
+  },
+  { key: "service", header: "Service", render: (lead) => lead.service },
+  { key: "source", header: "Source", render: (lead) => lead.source },
+  { key: "date", header: "Date", render: (lead) => lead.date },
+  { key: "status", header: "Status", render: (lead) => <StatusBadge status={lead.status} /> },
+];
+
+const invoiceColumns: Array<AdminTableColumn<Invoice>> = [
+  { key: "number", header: "Invoice", render: (invoice) => <strong className="text-gray-800">{invoice.id}</strong> },
+  { key: "client", header: "Client", render: (invoice) => invoice.client },
+  { key: "amount", header: "Amount", render: (invoice) => invoice.amount },
+  { key: "due", header: "Due", render: (invoice) => invoice.due },
+  { key: "status", header: "Status", render: (invoice) => <StatusBadge status={invoice.status} /> },
+];
+
+function Panel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+      <h2 className="mb-4 text-lg font-semibold text-gray-800">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Progress({ value }: { value: number }) {
+  return (
+    <div className="h-2 rounded-full bg-gray-100">
+      <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${value}%` }} />
+    </div>
+  );
+}
+
+type WorkflowCard = {
+  title: string;
+  description: string;
+  href?: string;
+  status?: string;
+};
+
+function WorkflowCards({ cards }: { cards: WorkflowCard[] }) {
+  return (
+    <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {cards.map((card) => <HubCard key={card.title} {...card} />)}
+    </div>
+  );
+}
+
+function MetricGrid({ metrics }: { metrics: Parameters<typeof MiniMetricCard>[0][] }) {
+  return (
+    <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {metrics.map((metric) => <MiniMetricCard key={metric.label} {...metric} />)}
+    </div>
+  );
+}
+
+export function DashboardPage() {
+  const pipelineSummary = ["New", "Qualified", "Proposal", "Won"].map((stage) => ({
+    stage,
+    count: pipelineDeals.filter((deal) => deal.stage === stage).length,
+  }));
+
+  return (
+    <AdminShell title="Dashboard" description="A focused overview of KWStudio leads, active work and operational priorities.">
+      <div className="grid grid-cols-12 gap-4 md:gap-6">
+        <div className="col-span-12 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "Leads", value: "48", detail: "+12% this month", href: "/admin/leads" },
+            { label: "Active projects", value: "7", detail: "3 launches scheduled", href: "/admin/projects" },
+            { label: "Website score", value: "88", detail: "Average across reports", href: "/admin/websites" },
+            { label: "Outstanding", value: "50k SEK", detail: "1 overdue invoice", href: "/admin/finance" },
+          ].map((metric) => <MiniMetricCard key={metric.label} {...metric} />)}
+        </div>
+
+        <div className="col-span-12 xl:col-span-7">
+          <Timeline title="Today's tasks" items={dashboardTasks} />
+        </div>
+        <div className="col-span-12 xl:col-span-5">
+          <Timeline title="Upcoming meetings" items={upcomingMeetings} />
+        </div>
+
+        <div className="col-span-12 xl:col-span-4">
+          <Panel title="Pipeline overview">
+            <div className="grid gap-3">
+              {pipelineSummary.map((item) => (
+                <div key={item.stage} className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3">
+                  <span className="text-sm font-medium text-gray-700">{item.stage}</span>
+                  <strong className="text-sm text-gray-900">{item.count}</strong>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+        <div className="col-span-12 xl:col-span-4">
+          <Panel title="Recent website analyses">
+            <div className="space-y-3">
+              {analyses.slice(0, 3).map((analysis) => (
+                <Link key={analysis.id} to="/admin/analyzer" className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-[#2E75BD]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate text-sm font-medium text-gray-700">{analysis.url}</span>
+                    <strong className="text-sm text-gray-900">{analysis.score}</strong>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">{analysis.findings} findings</p>
+                </Link>
+              ))}
+            </div>
+          </Panel>
+        </div>
+        <div className="col-span-12 xl:col-span-4">
+          <Panel title="Pending follow-ups">
+            <div className="space-y-3">
+              {followUps.slice(0, 3).map((item) => (
+                <Link key={item.id} to="/admin/follow-ups" className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-[#2E75BD]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-gray-700">{item.title}</span>
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">{item.person} - {item.due}</p>
+                </Link>
+              ))}
+            </div>
+          </Panel>
+        </div>
+
+        <div className="col-span-12 xl:col-span-8">
+          <Panel title="Active projects">
+            <div className="grid gap-4 md:grid-cols-3">
+              {adminProjects.map((project) => (
+                <Link key={project.id} to="/admin/projects" className="rounded-xl border border-gray-100 p-4 transition hover:border-[#2E75BD]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800">{project.name}</h3>
+                      <p className="mt-1 text-sm text-gray-500">{project.client}</p>
+                    </div>
+                    <StatusBadge status={project.status} />
+                  </div>
+                  <div className="mt-4"><Progress value={project.progress} /></div>
+                  <p className="mt-2 text-xs text-gray-500">Deadline {project.deadline}</p>
+                </Link>
+              ))}
+            </div>
+          </Panel>
+        </div>
+        <div className="col-span-12 xl:col-span-4">
+          <Panel title="Finance">
+            <div className="grid gap-3">
+              {dashboardFinanceMetrics.map((metric) => <MiniMetricCard key={metric.label} {...metric} />)}
+            </div>
+          </Panel>
+        </div>
+
+        <div className="col-span-12 xl:col-span-8">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-800">Recent leads</h2>
+            <Link className="text-sm font-medium text-[#2E75BD]" to="/admin/leads">View all</Link>
+          </div>
+          <AdminTable columns={leadColumns.slice(0, 4)} rows={adminLeads.slice(0, 4)} getRowKey={(lead) => lead.id} />
+        </div>
+        <div className="col-span-12 xl:col-span-4">
+          <QuickActions actions={quickActions} />
+        </div>
+      </div>
+    </AdminShell>
+  );
+}
+
+const leadStageOrder: LeadStage[] = ["New", "Researching", "Contacted", "Qualified", "Proposal", "Won", "Lost"];
+
+const leadSources: Array<LeadSource | "All"> = ["All", "Website form", "SCB company search", "Manual prospect", "Referral", "LinkedIn", "Audit tool"];
+
+const leadPriorities: Array<LeadPriority | "All"> = ["All", "High", "Medium", "Low"];
+
+const leadServices: Array<LeadServiceInterest | "All"> = ["All", "New website", "Redesign", "SEO / audit", "Care plan", "Ecommerce"];
+
+const defaultLeadResult: LeadsResult = { leads: [], latestImport: null, source: "demo" };
+
+function formatCurrency(value: number | null) {
+  if (!value) return "-";
+  return `${new Intl.NumberFormat("sv-SE").format(value)} SEK`;
+}
+
+function formatShortDate(value: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("sv-SE", { month: "short", day: "numeric" }).format(date);
+}
+
+function toTitle(value: string | null | undefined) {
+  if (!value) return "-";
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function leadCompanyName(lead: LeadWithCompanyAndAudit) {
+  return lead.company?.name ?? "Unknown company";
+}
+
+function leadSourceLabel(lead: LeadWithCompanyAndAudit): LeadSource {
+  const source = toTitle(lead.source).toLowerCase();
+  if (source.includes("scb")) return "SCB company search";
+  if (source.includes("manual")) return "Manual prospect";
+  if (source.includes("referral")) return "Referral";
+  if (source.includes("linkedin")) return "LinkedIn";
+  if (source.includes("audit")) return "Audit tool";
+  return "Website form";
+}
+
+function leadServiceLabel(lead: LeadWithCompanyAndAudit): LeadServiceInterest {
+  const service = (lead.service_interest ?? "").toLowerCase();
+  if (service.includes("redesign")) return "Redesign";
+  if (service.includes("seo") || service.includes("audit")) return "SEO / audit";
+  if (service.includes("care")) return "Care plan";
+  if (service.includes("commerce")) return "Ecommerce";
+  return "New website";
+}
+
+function leadSearchText(lead: LeadWithCompanyAndAudit) {
+  return [
+    leadCompanyName(lead),
+    lead.company?.email,
+    lead.company?.phone,
+    lead.company?.city,
+    lead.company?.industry_label,
+    lead.source,
+    lead.service_interest,
+    lead.next_action,
+    lead.assigned_to,
+  ].join(" ").toLowerCase();
+}
+
+function buildLeadMetrics(leads: LeadWithCompanyAndAudit[]) {
+  const statusCount = (stage: LeadStage) => leads.filter((lead) => mapLeadStage(lead.status) === stage).length;
+  const proposalValue = leads
+    .filter((lead) => mapLeadStage(lead.status) === "Proposal")
+    .reduce((total, lead) => total + (lead.estimated_value ?? 0), 0);
+  const wonValue = leads
+    .filter((lead) => mapLeadStage(lead.status) === "Won")
+    .reduce((total, lead) => total + (lead.estimated_value ?? 0), 0);
+  const conversionRate = leads.length > 0 ? Math.round((statusCount("Won") / leads.length) * 100) : 0;
+
+  return [
+    { label: "New leads", value: String(statusCount("New")), detail: "Ready for first review", href: "/admin/leads" },
+    { label: "Qualified", value: String(statusCount("Qualified")), detail: "Ready for discovery", href: "/admin/pipeline" },
+    { label: "Proposal value", value: formatCurrency(proposalValue), detail: "Open proposal stage", href: "/admin/proposals" },
+    { label: "Won this month", value: formatCurrency(wonValue), detail: `${statusCount("Won")} won opportunities`, href: "/admin/pipeline" },
+    { label: "Lost / archived", value: String(statusCount("Lost")), detail: "Review source quality", href: "/admin/leads" },
+    { label: "Conversion rate", value: `${conversionRate}%`, detail: "Won from current lead set", href: "/admin/leads" },
+  ];
+}
+
+function buildLeadSourceStats(leads: LeadWithCompanyAndAudit[]) {
+  return leadSources
+    .filter((source): source is LeadSource => source !== "All")
+    .map((source) => {
+      const count = leads.filter((lead) => leadSourceLabel(lead) === source).length;
+      const details: Record<LeadSource, string> = {
+        "Website form": "Inbound enquiries from kwstudio.se",
+        "SCB company search": "Companies discovered for qualification",
+        "Manual prospect": "Hand-picked local businesses",
+        Referral: "Warm intros from existing clients",
+        LinkedIn: "Founder outreach and content replies",
+        "Audit tool": "Website report requests",
+      };
+      return { source, count, detail: details[source] };
+    });
+}
+
+function LeadStageBadge({ stage }: { stage: LeadStage }) {
+  const styles: Record<LeadStage, string> = {
+    New: "bg-blue-50 text-[#2E75BD]",
+    Researching: "bg-slate-100 text-slate-700",
+    Contacted: "bg-sky-50 text-sky-700",
+    Qualified: "bg-green-50 text-green-700",
+    Proposal: "bg-amber-50 text-amber-700",
+    Won: "bg-emerald-50 text-emerald-700",
+    Lost: "bg-gray-100 text-gray-600",
+  };
+
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${styles[stage]}`}>{stage}</span>;
+}
+
+function PriorityBadge({ priority }: { priority: LeadPriority }) {
+  const styles: Record<LeadPriority, string> = {
+    High: "bg-red-50 text-red-600",
+    Medium: "bg-amber-50 text-amber-600",
+    Low: "bg-gray-100 text-gray-600",
+  };
+
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${styles[priority]}`}>{priority}</span>;
+}
+
+function SelectField({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: Array<{ id: string; label: string; value: string }>;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-1.5 text-xs font-medium text-gray-500">
+      <span>{label}</span>
+      <select
+        className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ScbLeadFinderPanel({
+  onDiscover,
+  onImport,
+  message,
+}: {
+  onDiscover: (filters: ScbDiscoverFilters) => void;
+  onImport: () => void;
+  message: string | null;
+}) {
+  const [filters, setFilters] = useState<ScbDiscoverFilters>({
+    region: scbLeadFinderFilters.region[0]?.value,
+    municipality: scbLeadFinderFilters.municipality[0]?.value,
+    industry: scbLeadFinderFilters.industry[0]?.value,
+    status: scbLeadFinderFilters.status[0]?.value,
+    tax: scbLeadFinderFilters.tax[0]?.value,
+    employees: scbLeadFinderFilters.employees[1]?.value,
+    registeredFrom: scbLeadFinderFilters.registered[1]?.value,
+    advertising: scbLeadFinderFilters.advertising[2]?.value,
+  });
+
+  const setFilter = (key: keyof ScbDiscoverFilters) => (value: string) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  return (
+    <Panel title="SCB Lead Finder">
+      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+        <p className="text-sm leading-6 text-gray-600">
+          Static demo panel prepared for SCB endpoints: <span className="font-medium text-gray-800">GET /categories</span>,{" "}
+          <span className="font-medium text-gray-800">GET /variables</span>, <span className="font-medium text-gray-800">POST /count</span> and{" "}
+          <span className="font-medium text-gray-800">POST /companies</span>.
+        </p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SelectField label="Lan" options={scbLeadFinderFilters.region} value={filters.region ?? ""} onChange={setFilter("region")} />
+        <SelectField label="Kommun" options={scbLeadFinderFilters.municipality} value={filters.municipality ?? ""} onChange={setFilter("municipality")} />
+        <SelectField label="Bransch / SNI" options={scbLeadFinderFilters.industry} value={filters.industry ?? ""} onChange={setFilter("industry")} />
+        <SelectField label="Foretagsstatus" options={scbLeadFinderFilters.status} value={filters.status ?? ""} onChange={setFilter("status")} />
+        <SelectField label="F-skatt / moms" options={scbLeadFinderFilters.tax} value={filters.tax ?? ""} onChange={setFilter("tax")} />
+        <SelectField label="Anstallda" options={scbLeadFinderFilters.employees} value={filters.employees ?? ""} onChange={setFilter("employees")} />
+        <SelectField label="Registrering" options={scbLeadFinderFilters.registered} value={filters.registeredFrom ?? ""} onChange={setFilter("registeredFrom")} />
+        <SelectField label="Reklamstatus" options={scbLeadFinderFilters.advertising} value={filters.advertising ?? ""} onChange={setFilter("advertising")} />
+      </div>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        <button className="btn btn-primary" type="button" onClick={() => onDiscover(filters)}>Find companies</button>
+        <button className="btn btn-outline" type="button" onClick={onImport}>Import selected</button>
+      </div>
+      {message ? <p className="mt-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-600">{message}</p> : null}
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {scbImportStatus.map((item) => (
+          <div key={item.label} className="rounded-xl border border-gray-100 px-4 py-3">
+            <span className="text-xs font-medium text-gray-500">{item.label}</span>
+            <strong className="mt-1 block text-lg text-gray-800">{item.value}</strong>
+            <p className="mt-1 text-xs text-gray-500">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function LeadPipeline({ leads }: { leads: LeadWithCompanyAndAudit[] }) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800">Lead pipeline</h2>
+          <p className="mt-1 text-sm text-gray-500">From imported companies to won projects.</p>
+        </div>
+        <span className="text-sm font-medium text-[#2E75BD]">{leads.length} active records</span>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-7">
+        {leadStageOrder.map((stage) => {
+          const stageLeads = leads.filter((lead) => mapLeadStage(lead.status) === stage);
+          return (
+            <div key={stage} className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-gray-800">{stage}</h3>
+                <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-500">{stageLeads.length}</span>
+              </div>
+              <div className="space-y-3">
+                {stageLeads.length > 0 ? stageLeads.map((lead) => (
+                  <article key={lead.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h4>
+                        <p className="mt-0.5 text-xs text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "Lead record"}</p>
+                      </div>
+                      <PriorityBadge priority={mapLeadPriority(lead.priority)} />
+                    </div>
+                    <p className="mt-3 text-xs font-medium text-gray-500">{leadSourceLabel(lead)}</p>
+                    <p className="mt-1 text-sm text-gray-700">{lead.service_interest ?? "Website opportunity"}</p>
+                    <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                      <span className="font-semibold text-gray-800">{formatCurrency(lead.estimated_value)}</span>
+                      <span className="text-gray-500">{formatShortDate(lead.created_at)}</span>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-gray-500">{lead.next_action ?? "Review opportunity"}</p>
+                    <div className="mt-3"><LeadStageBadge stage={mapLeadStage(lead.status)} /></div>
+                  </article>
+                )) : (
+                  <p className="rounded-lg border border-dashed border-gray-200 bg-white p-3 text-xs leading-5 text-gray-500">No leads in this stage.</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function InsightList({ title, items }: { title: string; items: Array<{ id: string; title: string; detail: string; meta: string }> }) {
+  return (
+    <Panel title={title}>
+      <div className="space-y-3">
+        {items.map((item) => (
+          <div key={item.id} className="rounded-lg border border-gray-100 px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-sm font-semibold text-gray-800">{item.title}</h3>
+              <span className="text-xs font-medium text-gray-500">{item.meta}</span>
+            </div>
+            <p className="mt-1 text-sm leading-6 text-gray-500">{item.detail}</p>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+export function LeadsPage() {
+  const [query, setQuery] = useState("");
+  const [source, setSource] = useState<LeadSource | "All">("All");
+  const [stage, setStage] = useState<LeadStage | "All">("All");
+  const [priority, setPriority] = useState<LeadPriority | "All">("All");
+  const [service, setService] = useState<LeadServiceInterest | "All">("All");
+  const [leadResult, setLeadResult] = useState<LeadsResult>(defaultLeadResult);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setIsLoading(true);
+    getLeads()
+      .then((result) => {
+        if (isMounted) setLeadResult(result);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const leads = leadResult.leads;
+  const metrics = useMemo(() => buildLeadMetrics(leads), [leads]);
+  const sourceStats = useMemo(() => buildLeadSourceStats(leads), [leads]);
+
+  const rows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return leads.filter((lead) => {
+      const matchesQuery = !normalized || leadSearchText(lead).includes(normalized);
+      const matchesSource = source === "All" || leadSourceLabel(lead) === source;
+      const matchesStage = stage === "All" || mapLeadStage(lead.status) === stage;
+      const matchesPriority = priority === "All" || mapLeadPriority(lead.priority) === priority;
+      const matchesService = service === "All" || leadServiceLabel(lead) === service;
+      return (!normalized || matchesQuery) && matchesSource && matchesStage && matchesPriority && matchesService;
+    });
+  }, [leads, priority, query, service, source, stage]);
+
+  const followUps = useMemo(() => leads.filter((lead) => lead.next_action).slice(0, 4), [leads]);
+  const hotProspects = useMemo(
+    () => [...leads].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 4),
+    [leads],
+  );
+  const aiSuggestions = useMemo(() => {
+    const missingWebsite = leads.filter((lead) => !lead.company?.website_found).length;
+    const lowSeo = leads.filter((lead) => (lead.latestAudit?.seo_score ?? 100) < 70).length;
+    return [
+      { id: "ai-websites", title: "Prioritize missing websites", detail: `${missingWebsite} leads have no detected website. Start with a simple credibility-site offer.`, meta: "Suggested" },
+      { id: "ai-seo", title: "Use audit-first outreach", detail: `${lowSeo} leads show weak SEO scores. Lead with one visible improvement, not a long checklist.`, meta: "Suggested" },
+      ...leadInsights.aiSuggestions.slice(0, 1),
+    ];
+  }, [leads]);
+
+  const updateLocalStatus = (leadId: string, nextStatus: LeadStage) => {
+    setLeadResult((current) => ({
+      ...current,
+      leads: current.leads.map((lead) => (
+        lead.id === leadId ? { ...lead, status: nextStatus.toLowerCase().replace(/\s+/g, "_") } : lead
+      )),
+    }));
+  };
+
+  const handleStatusUpdate = async (lead: LeadWithCompanyAndAudit, nextStatus: LeadStage) => {
+    const result = await updateLeadStatus(lead.id, nextStatus);
+    setActionMessage(result.message);
+    if (result.ok) updateLocalStatus(lead.id, nextStatus);
+  };
+
+  const handleDiscover = async (filters: ScbDiscoverFilters) => {
+    const result = await discoverScbLeads(filters);
+    setActionMessage(result.ok
+      ? `SCB import queued. ${result.data?.importedCount ?? 0} companies prepared.`
+      : result.error ?? "SCB import could not be started.");
+  };
+
+  const handleImport = () => {
+    setActionMessage("Import selected is wired for the future Render API flow. Selectable SCB results will be added in the next pass.");
+  };
+
+  const handleAudit = async (lead: LeadWithCompanyAndAudit) => {
+    const result = await auditLeadWebsite(lead.id);
+    setActionMessage(result.ok
+      ? `Website audit queued for ${leadCompanyName(lead)}.`
+      : result.error ?? "Website audit could not be started.");
+  };
+
+  const handleRefreshScore = async (lead: LeadWithCompanyAndAudit) => {
+    const result = await refreshLeadScore(lead.id);
+    setActionMessage(result.ok
+      ? `Lead score refreshed for ${leadCompanyName(lead)}.`
+      : result.error ?? "Lead score could not be refreshed.");
+  };
+
+  const leadTableColumns: Array<AdminTableColumn<LeadWithCompanyAndAudit>> = [
+    {
+      key: "lead",
+      header: "Lead / company",
+      render: (lead) => (
+        <div>
+          <strong className="block font-medium text-gray-800">{leadCompanyName(lead)}</strong>
+          <span className="mt-0.5 block text-sm text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "No company context"}</span>
+        </div>
+      ),
+    },
+    {
+      key: "contact",
+      header: "Contact",
+      render: (lead) => (
+        <div>
+          <span className="block text-sm text-gray-700">{lead.company?.email ?? "No email"}</span>
+          <span className="mt-0.5 block text-xs text-gray-500">{lead.company?.phone ?? lead.company?.org_number ?? "No phone"}</span>
+        </div>
+      ),
+    },
+    { key: "source", header: "Source", render: (lead) => leadSourceLabel(lead) },
+    { key: "service", header: "Service", render: (lead) => lead.service_interest ?? "Website opportunity" },
+    { key: "value", header: "Value", render: (lead) => <span className="font-medium text-gray-800">{formatCurrency(lead.estimated_value)}</span> },
+    { key: "stage", header: "Stage", render: (lead) => <LeadStageBadge stage={mapLeadStage(lead.status)} /> },
+    { key: "priority", header: "Priority", render: (lead) => <PriorityBadge priority={mapLeadPriority(lead.priority)} /> },
+    { key: "next", header: "Next action", render: (lead) => lead.next_action ?? "Review lead" },
+    { key: "activity", header: "Last activity", render: (lead) => formatShortDate(lead.updated_at) },
+    { key: "owner", header: "Assigned to", render: (lead) => lead.assigned_to ?? "Kevin" },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (lead) => (
+        <div className="flex flex-wrap gap-2">
+          <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]" type="button" onClick={() => handleAudit(lead)}>Audit</button>
+          <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]" type="button" onClick={() => handleRefreshScore(lead)}>Score</button>
+          <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]" type="button" onClick={() => handleStatusUpdate(lead, "Qualified")}>Qualify</button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <AdminShell title="Leads" description="A working dashboard for finding, qualifying and converting website opportunities.">
+      <MetricGrid metrics={leads.length > 0 ? metrics : leadStageMetrics} />
+
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-800">
+              {isLoading ? "Loading leads" : leadResult.source === "supabase" ? "Connected to Supabase" : "Demo fallback active"}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {leadResult.error ?? (isSupabaseConfigured ? "Lead data is read through the Supabase client." : "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to read live leads.")}
+            </p>
+          </div>
+          <StatusBadge status={leadResult.source === "supabase" ? "Live" : "Draft"} />
+        </div>
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        {sourceStats.map((item) => (
+          <article key={item.source} className="rounded-2xl border border-gray-200 bg-white p-5">
+            <span className="text-sm font-medium text-gray-500">{item.source}</span>
+            <strong className="mt-2 block text-2xl font-bold text-gray-800">{item.count}</strong>
+            <p className="mt-2 text-sm leading-6 text-gray-500">{item.detail}</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="mb-6">
+        <ScbLeadFinderPanel onDiscover={handleDiscover} onImport={handleImport} message={actionMessage} />
+      </div>
+
+      <div className="mb-6">
+        <LeadPipeline leads={leads} />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <FilterBar
+            search={query}
+            onSearchChange={setQuery}
+            searchPlaceholder="Search leads, companies, contacts or services"
+            filters={[
+              { label: "Source", value: source, onChange: (value) => setSource(value as LeadSource | "All"), options: leadSources.map((value) => ({ label: value, value })) },
+              { label: "Stage", value: stage, onChange: (value) => setStage(value as LeadStage | "All"), options: ["All", ...leadStageOrder].map((value) => ({ label: value, value })) },
+              { label: "Priority", value: priority, onChange: (value) => setPriority(value as LeadPriority | "All"), options: leadPriorities.map((value) => ({ label: value, value })) },
+              { label: "Service", value: service, onChange: (value) => setService(value as LeadServiceInterest | "All"), options: leadServices.map((value) => ({ label: value, value })) },
+            ]}
+          />
+          {isLoading ? (
+            <EmptyState title="Loading leads" description="Lead records are being prepared from Supabase or the local demo fallback." />
+          ) : (
+            <AdminTable columns={leadTableColumns} rows={rows} getRowKey={(lead) => lead.id} emptyMessage="No leads found for the selected filters." />
+          )}
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {leadDashboardStates.map((state) => (
+              <article key={state.id} className="rounded-2xl border border-gray-200 bg-white p-5">
+                <h3 className="text-sm font-semibold text-gray-800">{state.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-gray-500">{state.detail}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <aside className="grid gap-6">
+          <Panel title="Next follow-ups">
+            <div className="space-y-3">
+              {followUps.map((lead) => (
+                <div key={lead.id} className="rounded-lg border border-gray-100 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h3>
+                    <span className="text-xs font-medium text-gray-500">{formatShortDate(lead.updated_at)}</span>
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-gray-500">{lead.next_action}</p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+          <Panel title="Hot prospects">
+            <div className="space-y-3">
+              {hotProspects.map((lead) => (
+                <div key={lead.id} className="rounded-lg border border-gray-100 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h3>
+                    <span className="text-xs font-medium text-[#2E75BD]">{lead.score ?? 0}/100</span>
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-gray-500">{lead.service_interest ?? "Website opportunity"}</p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+          <InsightList title="AI suggestions" items={aiSuggestions} />
+          <Panel title="SCB import status">
+            <div className="grid gap-3">
+              {leadResult.latestImport ? (
+                <div className="rounded-lg border border-gray-100 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-gray-800">{toTitle(leadResult.latestImport.status)}</h3>
+                    <strong className="text-sm text-gray-900">{leadResult.latestImport.imported_count ?? 0}</strong>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {leadResult.latestImport.created_leads_count ?? 0} leads created, {leadResult.latestImport.websites_found_count ?? 0} websites found.
+                  </p>
+                </div>
+              ) : null}
+              {scbImportStatus.slice(0, 3).map((item) => (
+                <div key={item.label} className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 px-4 py-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">{item.label}</h3>
+                    <p className="mt-1 text-xs text-gray-500">{item.detail}</p>
+                  </div>
+                  <strong className="text-sm text-gray-900">{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </Panel>
+          <QuickActions
+            title="Lead actions"
+            actions={[
+              { label: "Generate proposal", href: "/admin/proposal-generator", icon: quickActions[0].icon, description: "Draft from selected lead" },
+              { label: "Open follow-ups", href: "/admin/follow-ups", icon: quickActions[3].icon, description: "Plan next contact" },
+              { label: "Run website audit", href: "/admin/analyzer", icon: quickActions[2].icon, description: "Qualify fit and need" },
+            ]}
+          />
+        </aside>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function PipelinePage() {
+  const stages = ["New", "Qualified", "Proposal", "Won"];
+  return (
+    <AdminShell title="Pipeline" description="A kanban view of live sales opportunities and next steps.">
+      <KanbanBoard
+        columns={stages.map((stage) => ({
+          id: stage,
+          title: stage,
+          items: pipelineDeals.filter((deal) => deal.stage === stage).map((deal) => (
+            <article key={deal.id} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-800">{deal.company}</h3>
+              <p className="mt-1 text-sm text-gray-500">{deal.service}</p>
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <span className="font-semibold text-gray-800">{deal.value}</span>
+                <span className="text-gray-500">{deal.nextAction}</span>
+              </div>
+            </article>
+          )),
+        }))}
+      />
+    </AdminShell>
+  );
+}
+
+export function ProposalsPage() {
+  const columns: Array<AdminTableColumn<Proposal>> = [
+    { key: "proposal", header: "Proposal", render: (proposal) => <strong className="text-gray-800">{proposal.title}</strong> },
+    { key: "client", header: "Client", render: (proposal) => proposal.client },
+    { key: "value", header: "Value", render: (proposal) => proposal.value },
+    { key: "expires", header: "Expires", render: (proposal) => proposal.expiry },
+    { key: "status", header: "Status", render: (proposal) => <StatusBadge status={proposal.status} /> },
+  ];
+  return <AdminShell title="Proposals" description="Track proposal value, expiry dates and approval status."><AdminTable columns={columns} rows={proposals} getRowKey={(proposal) => proposal.id} /></AdminShell>;
+}
+
+export function FollowUpsPage() {
+  return (
+    <AdminShell title="Follow-ups" description="A focused list of reminders, calls and next actions.">
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <TaskList items={followUps.map((item) => ({ id: item.id, title: item.title, meta: `${item.due} - ${item.channel}`, description: `${item.person}, ${item.company}`, status: item.status }))} />
+        </div>
+        <Panel title="Priority queue">
+          <p className="text-sm leading-6 text-gray-500">Start with overdue or scheduled follow-ups, then confirm proposal feedback before the next business day.</p>
+        </Panel>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function ProjectsPage() {
+  const columns: Array<AdminTableColumn<AdminProject>> = [
+    { key: "project", header: "Project", render: (project) => <strong className="text-gray-800">{project.name}</strong> },
+    { key: "client", header: "Client", render: (project) => project.client },
+    { key: "deadline", header: "Deadline", render: (project) => project.deadline },
+    { key: "progress", header: "Progress", render: (project) => <div className="min-w-32"><Progress value={project.progress} /></div> },
+    { key: "status", header: "Status", render: (project) => <StatusBadge status={project.status} /> },
+  ];
+
+  const nextDeadline = adminProjects[0];
+
+  return (
+    <AdminShell title="Projects" description="Track active builds, delivery health and client deadlines.">
+      <MetricGrid metrics={projectStatusMetrics} />
+      <WorkflowCards
+        cards={[
+          { title: "Projects", description: "Monitor active builds, status and delivery progress.", href: "/admin/projects" },
+          { title: "Tasks", description: "Organize production work by owner and status.", href: "/admin/tasks" },
+          { title: "Files", description: "Find client assets, planning documents and handoff files.", href: "/admin/files" },
+        ]}
+      />
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        {adminProjects.map((project) => (
+          <Panel key={project.id} title={project.name}>
+            <p className="text-sm text-gray-500">{project.scope}</p>
+            <div className="mt-4"><Progress value={project.progress} /></div>
+            <p className="mt-2 text-xs text-gray-500">Deadline {project.deadline}</p>
+          </Panel>
+        ))}
+      </div>
+      <div className="mb-6 grid gap-6 xl:grid-cols-3">
+        <Panel title="Next deadline">
+          <h3 className="text-sm font-semibold text-gray-800">{nextDeadline.name}</h3>
+          <p className="mt-2 text-sm text-gray-500">{nextDeadline.client} - {nextDeadline.deadline}</p>
+        </Panel>
+        <Panel title="Task summary">
+          <div className="grid gap-3">
+            {["To do", "In progress", "Review", "Done"].map((status) => (
+              <div key={status} className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3">
+                <span className="text-sm text-gray-600">{status}</span>
+                <strong className="text-sm text-gray-900">{adminTasks.filter((task) => task.status === status).length}</strong>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Timeline title="Project activity" items={projectTimeline} />
+      </div>
+      <AdminTable columns={columns} rows={adminProjects} getRowKey={(project) => project.id} />
+    </AdminShell>
+  );
+}
+
+export function TasksPage() {
+  const statuses = ["To do", "In progress", "Review", "Done"];
+  return (
+    <AdminShell title="Tasks" description="Production tasks grouped by current delivery state.">
+      <KanbanBoard columns={statuses.map((status) => ({ id: status, title: status, items: adminTasks.filter((task) => task.status === status).map((task) => <article key={task.id} className="rounded-xl border border-gray-100 p-4"><h3 className="text-sm font-semibold text-gray-800">{task.title}</h3><p className="mt-1 text-sm text-gray-500">{task.project}</p><p className="mt-3 text-xs font-medium text-gray-400">{task.owner} - {task.due}</p></article>) }))} />
+    </AdminShell>
+  );
+}
+
+export function ClientsPage() {
+  const [query, setQuery] = useState("");
+  const rows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return clients.filter((client) => [client.name, client.contact, client.email, client.project].join(" ").toLowerCase().includes(normalized));
+  }, [query]);
+
+  const columns: Array<AdminTableColumn<Client>> = [
+    { key: "client", header: "Client", render: (client) => <strong className="text-gray-800">{client.name}</strong> },
+    { key: "contact", header: "Contact", render: (client) => client.contact },
+    { key: "project", header: "Project", render: (client) => client.project },
+    { key: "last", header: "Last contact", render: (client) => client.lastContact },
+    { key: "status", header: "Status", render: (client) => <StatusBadge status={client.status} /> },
+  ];
+
+  return (
+    <AdminShell title="Clients" description="A compact CRM view for active relationships and project context.">
+      <MetricGrid metrics={clientHealthMetrics} />
+      <div className="mb-6 grid gap-4 xl:grid-cols-3">
+        {featuredClients.map((client) => (
+          <Panel key={client.id} title={client.name}>
+            <p className="text-sm text-gray-500">{client.contact} - {client.health}</p>
+            <dl className="mt-4 grid gap-3 text-sm">
+              <div className="flex justify-between gap-3"><dt className="text-gray-500">Project</dt><dd className="font-medium text-gray-800">{client.activeProject}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-gray-500">Invoice</dt><dd className="font-medium text-gray-800">{client.latestInvoice}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-gray-500">Last contact</dt><dd className="font-medium text-gray-800">{client.lastContact}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-gray-500">Notes</dt><dd className="font-medium text-gray-800">{client.notes}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-gray-500">Value</dt><dd className="font-medium text-gray-800">{client.lifetimeValue}</dd></div>
+            </dl>
+          </Panel>
+        ))}
+      </div>
+      <FilterBar search={query} onSearchChange={setQuery} searchPlaceholder="Search clients, contacts or projects" />
+      <AdminTable columns={columns} rows={rows} getRowKey={(client) => client.id} />
+    </AdminShell>
+  );
+}
+
+export function FilesPage() {
+  return (
+    <AdminShell title="Files" description="Shared client assets, reports and handoff documents.">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {files.map((file) => <Panel key={file.id} title={file.name}><p className="text-sm text-gray-500">{file.client} - {file.type}</p><p className="mt-4 text-sm font-medium text-gray-800">{file.size}</p><p className="mt-1 text-xs text-gray-400">Updated {file.updated}</p></Panel>)}
+      </div>
+    </AdminShell>
+  );
+}
+
+export function WebsitesPage() {
+  const columns: Array<AdminTableColumn<WebsiteReport>> = [
+    { key: "client", header: "Client", render: (report) => <strong className="text-gray-800">{report.client}</strong> },
+    { key: "report", header: "Report", render: (report) => report.name },
+    { key: "score", header: "Score", render: (report) => `${report.score}/100` },
+    { key: "date", header: "Date", render: (report) => report.date },
+    { key: "status", header: "Status", render: (report) => <StatusBadge status={report.status} /> },
+  ];
+
+  return (
+    <AdminShell title="Websites" description="A hub for site health, SEO, audits and hosting workflows.">
+      <MetricGrid metrics={websiteHealthMetrics} />
+      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {websiteScores.map((score) => <ScoreCard key={score.label} {...score} />)}
+      </div>
+      <WorkflowCards
+        cards={[
+          { title: "Website Reports", description: "Review client report history, scores and delivery status.", href: "/admin/reports" },
+          { title: "Website Analyzer", description: "Run audit checks and review recent analysis results.", href: "/admin/analyzer" },
+          { title: "SEO", description: "Track keyword priorities and on-page checklist progress.", href: "/admin/seo" },
+          { title: "Uptime", description: "Monitor availability, response times and incidents.", href: "/admin/uptime" },
+          { title: "Domains", description: "Domain renewals and DNS workflow will live here.", status: "Coming soon" },
+          { title: "Hosting", description: "Hosting plans, environments and launch notes will live here.", status: "Coming soon" },
+        ]}
+      />
+      <AdminTable columns={columns} rows={recentWebsiteScans} getRowKey={(report) => report.id} />
+    </AdminShell>
+  );
+}
+
+export function ReportsPage() {
+  const columns: Array<AdminTableColumn<WebsiteReport>> = [
+    { key: "client", header: "Client", render: (report) => <strong className="text-gray-800">{report.client}</strong> },
+    { key: "report", header: "Report", render: (report) => report.name },
+    { key: "score", header: "Score", render: (report) => `${report.score}/100` },
+    { key: "date", header: "Date", render: (report) => report.date },
+    { key: "status", header: "Status", render: (report) => <StatusBadge status={report.status} /> },
+  ];
+  return <AdminShell title="Website Reports" description="Client report history with scores and delivery status."><AdminTable columns={columns} rows={websiteReports} getRowKey={(report) => report.id} /></AdminShell>;
+}
+
+export function AnalyzerPage() {
+  return (
+    <AdminShell title="Website Analyzer" description="Run a quick demo audit workflow and review recent analyses.">
+      <div className="grid gap-6 xl:grid-cols-3">
+        <FormCard title="Analyze a URL" description="Static v1 form for future analyzer automation.">
+          <div className="space-y-4"><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue="https://example.com" /><button className="btn btn-primary" type="button">Run analysis</button></div>
+        </FormCard>
+        <div className="xl:col-span-2 grid gap-4 md:grid-cols-2">
+          {analyses.map((analysis) => <Panel key={analysis.id} title={analysis.url}><p className="text-sm text-gray-500">{analysis.findings} findings queued for review.</p><p className="mt-4 text-2xl font-bold text-gray-800">{analysis.score}</p></Panel>)}
+        </div>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function SeoPage() {
+  return (
+    <AdminShell title="SEO" description="Checklist status and keyword priorities for client sites.">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <TaskList items={seoItems.map((item) => ({ id: item.id, title: item.page, meta: item.keyword, description: `${item.priority} priority`, status: item.status }))} />
+        <Panel title="SEO priorities"><p className="text-sm leading-6 text-gray-500">Focus on title clarity, internal links and local service page coverage before expanding content volume.</p></Panel>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function UptimePage() {
+  return (
+    <AdminShell title="Uptime" description="Monitor site availability and response time.">
+      <div className="grid gap-4 md:grid-cols-3">
+        {uptimeMonitors.map((monitor) => <Panel key={monitor.id} title={monitor.site}><p className="text-sm text-gray-500">{monitor.status}</p><p className="mt-4 text-2xl font-bold text-gray-800">{monitor.uptime}</p><p className="mt-1 text-xs text-gray-400">{monitor.response} - {monitor.incident}</p></Panel>)}
+      </div>
+    </AdminShell>
+  );
+}
+
+export function InvoicesPage() {
+  return <AdminShell title="Invoices" description="Track paid, unpaid and overdue invoices."><AdminTable columns={invoiceColumns} rows={invoices} getRowKey={(invoice) => invoice.id} /></AdminShell>;
+}
+
+export function PaymentsPage() {
+  const columns: Array<AdminTableColumn<Payment>> = [
+    { key: "client", header: "Client", render: (payment) => <strong className="text-gray-800">{payment.client}</strong> },
+    { key: "amount", header: "Amount", render: (payment) => payment.amount },
+    { key: "method", header: "Method", render: (payment) => payment.method },
+    { key: "date", header: "Date", render: (payment) => payment.date },
+  ];
+  return <AdminShell title="Payments" description="Recent payment activity and collection channels."><AdminTable columns={columns} rows={payments} getRowKey={(payment) => payment.id} /></AdminShell>;
+}
+
+export function ExpensesPage() {
+  const columns: Array<AdminTableColumn<Expense>> = [
+    { key: "vendor", header: "Vendor", render: (expense) => <strong className="text-gray-800">{expense.vendor}</strong> },
+    { key: "category", header: "Category", render: (expense) => expense.category },
+    { key: "amount", header: "Amount", render: (expense) => expense.amount },
+    { key: "date", header: "Date", render: (expense) => expense.date },
+  ];
+  return <AdminShell title="Expenses" description="A simple expense tracker grouped by business category."><AdminTable columns={columns} rows={expenses} getRowKey={(expense) => expense.id} /></AdminShell>;
+}
+
+export function FinancePage() {
+  return (
+    <AdminShell title="Finance" description="A hub for invoices, payments, expenses and bookkeeping workflows.">
+      <MetricGrid metrics={financeMetrics} />
+      <WorkflowCards
+        cards={[
+          { title: "Invoices", description: "Track paid, unpaid and overdue client invoices.", href: "/admin/invoices" },
+          { title: "Payments", description: "Review recent payment activity and collection channels.", href: "/admin/payments" },
+          { title: "Expenses", description: "Keep software, hosting and operating costs organized.", href: "/admin/expenses" },
+          { title: "Taxes / VAT", description: "VAT reporting and tax preparation workflow will live here.", status: "Coming soon" },
+          { title: "Bookkeeping", description: "Run the monthly document and reconciliation checklist.", href: "/admin/bookkeeping" },
+        ]}
+      />
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-800">Recent invoices</h2>
+            <Link className="text-sm font-medium text-[#2E75BD]" to="/admin/invoices">View all</Link>
+          </div>
+          <AdminTable columns={invoiceColumns} rows={invoices} getRowKey={(invoice) => invoice.id} />
+        </div>
+        <div className="grid gap-6">
+          <Timeline title="Finance activity" items={financeActivity} />
+          <Panel title="VAT reminder">
+            <p className="text-sm leading-6 text-gray-500">Prepare June invoice exports and software expense receipts before the next bookkeeping review.</p>
+          </Panel>
+        </div>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function BookkeepingPage() {
+  return <AdminShell title="Bookkeeping" description="Monthly admin checklist for documents, invoices and reconciliations."><TaskList items={bookkeepingTasks.map((task) => ({ id: task.id, title: task.title, meta: task.meta, description: task.detail, status: task.status }))} /></AdminShell>;
+}
+
+export function AiToolsPage() {
+  const [query, setQuery] = useState("");
+  const filteredTools = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return aiTools.filter((tool) => [tool.title, tool.description].join(" ").toLowerCase().includes(normalized));
+  }, [query]);
+  const pinnedTools = aiTools.filter((tool) => aiPinnedTools.includes(tool.title));
+
+  return (
+    <AdminShell title="AI Hub" description="Internal helpers for proposals, copy, lead research and website review.">
+      <FilterBar search={query} onSearchChange={setQuery} searchPlaceholder="Search AI tools" />
+      <div className="mb-6 grid gap-6 xl:grid-cols-3">
+        <Panel title="Pinned tools">
+          <div className="grid gap-3">
+            {pinnedTools.map((tool) => <Link key={tool.href} to={tool.href} className="rounded-lg border border-gray-100 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-[#2E75BD]">{tool.title}</Link>)}
+          </div>
+        </Panel>
+        <Panel title="Recently used">
+          <div className="grid gap-3">
+            {aiRecentTools.map((tool) => <Link key={tool.href} to={tool.href} className="rounded-lg border border-gray-100 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-[#2E75BD]"><span className="block">{tool.title}</span><span className="mt-1 block text-xs font-normal text-gray-500">{tool.meta}</span></Link>)}
+          </div>
+        </Panel>
+        <Panel title="Quick prompts">
+          <div className="grid gap-3">
+            {aiQuickPrompts.map((prompt) => <div key={prompt.id} className="rounded-lg border border-gray-100 px-4 py-3"><h3 className="text-sm font-semibold text-gray-800">{prompt.title}</h3><p className="mt-1 text-sm leading-6 text-gray-500">{prompt.prompt}</p></div>)}
+          </div>
+        </Panel>
+      </div>
+      <WorkflowCards
+        cards={filteredTools.map((tool) => ({
+          title: tool.title,
+          description: tool.description,
+          href: tool.href,
+          status: tool.status,
+        }))}
+      />
+    </AdminShell>
+  );
+}
+
+export function ProposalGeneratorPage() {
+  return (
+    <AdminShell title="Proposal Generator" description="Draft a proposal outline from project scope and client goals.">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <FormCard title="Project input"><div className="space-y-4"><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue="Local service website" /><textarea className="min-h-32 w-full rounded-lg border border-gray-200 px-4 py-3 text-sm" defaultValue="Premium website, copy direction, SEO setup and launch support." /><button className="btn btn-primary" type="button">Generate draft</button></div></FormCard>
+        <Panel title="Preview"><p className="text-sm leading-6 text-gray-500">This proposal will focus on clear positioning, conversion-focused pages and a launch plan with measurable milestones.</p></Panel>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function CopywriterPage() {
+  return (
+    <AdminShell title="Copywriter" description="Create structured copy drafts for website sections.">
+      <div className="grid gap-6 xl:grid-cols-3">
+        <FormCard title="Copy brief"><div className="space-y-4"><select className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm"><option>Homepage hero</option><option>Service section</option><option>About intro</option></select><textarea className="min-h-32 w-full rounded-lg border border-gray-200 px-4 py-3 text-sm" defaultValue="Confident, direct and premium." /></div></FormCard>
+        <div className="xl:col-span-2"><Panel title="Output"><p className="text-sm leading-6 text-gray-500">We build websites that make your business easier to understand, trust and contact.</p></Panel></div>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function LeadFinderPage() {
+  return (
+    <AdminShell title="Lead Finder" description="Search for potential business clients and qualify opportunities.">
+      <FormCard title="Search workflow"><div className="grid gap-3 md:grid-cols-[1fr_auto]"><input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" defaultValue="Stockholm local businesses" /><button className="btn btn-primary" type="button">Find leads</button></div></FormCard>
+      <div className="mt-6 grid gap-4 md:grid-cols-3">{prospects.map((prospect) => <Panel key={prospect.id} title={prospect.company}><p className="text-sm text-gray-500">{prospect.industry}</p><p className="mt-4 text-sm font-medium text-gray-800">{prospect.fit}</p></Panel>)}</div>
+    </AdminShell>
+  );
+}
+
+export function CalendarPage() {
+  return <AdminShell title="Calendar" description="Upcoming meetings, launches and operational reminders."><TaskList items={calendarEvents.map((event) => ({ id: event.id, title: event.title, meta: `${event.date} - ${event.type}`, description: event.client, status: event.status }))} /></AdminShell>;
+}
+
+export function EmailPage() {
+  return (
+    <AdminShell title="Email" description="Inbox-style overview for client messages and lead replies.">
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-2"><TaskList items={emailMessages.map((message) => ({ id: message.id, title: message.subject, meta: `${message.sender} - ${message.date}`, description: message.snippet, status: message.status }))} /></div>
+        <EmptyState title="Select a message" description="A detailed message preview can live here when live email integration is added." />
+      </div>
+    </AdminShell>
+  );
+}
+
+export function SettingsPage() {
+  return (
+    <AdminShell title="Settings" description="Profile, company, brand and workspace preferences for KWStudio admin.">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <FormCard title="General"><div className="space-y-4"><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.studioName} /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.email} /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.timezone} /></div></FormCard>
+        <FormCard title="Company"><div className="space-y-4"><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue="KWStudio AB" /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.location} /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue="Web design and development" /></div></FormCard>
+        <FormCard title="Branding"><div className="space-y-4"><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.brandColor} /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue="Inter" /></div></FormCard>
+        <FormCard title="Notifications"><div className="space-y-4">{["Weekly summaries", "Lead reminders", "Launch alerts"].map((preference) => <label key={preference} className="flex items-center justify-between rounded-lg border border-gray-100 p-3 text-sm font-medium text-gray-700"><span>{preference}</span><input type="checkbox" defaultChecked /></label>)}</div></FormCard>
+        <Panel title="Integrations"><div className="grid gap-3">{["Supabase", "Email", "Analytics", "Invoicing"].map((item) => <div key={item} className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 text-sm"><span className="font-medium text-gray-700">{item}</span><span className="text-gray-500">Coming soon</span></div>)}</div></Panel>
+        <Panel title="API Keys"><p className="text-sm leading-6 text-gray-500">API key storage is disabled in this static demo. No secrets are shown or stored.</p></Panel>
+        <Panel title="Security"><p className="text-sm leading-6 text-gray-500">Authentication, roles and audit logs will be configured when the admin is connected to Supabase.</p></Panel>
+      </div>
+    </AdminShell>
+  );
+}

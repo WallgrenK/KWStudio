@@ -1,5 +1,5 @@
-import logoDark from "./logo-dark.svg";
-import logoLight from "./logo-light.svg";
+import logoDark from "~/assets/logos/react-router-logo-dark.svg";
+import logoLight from "~/assets/logos/react-router-logo-light.svg";
 
 export function Welcome() {
   return (
