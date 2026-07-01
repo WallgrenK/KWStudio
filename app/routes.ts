@@ -7,10 +7,7 @@ export default [
     route("process", "routes/process.tsx"),
     route("contact", "routes/contact.tsx"),
     route("start-a-project", "routes/start-a-project.tsx"),
-<<<<<<< HEAD
-=======
     route("login", "routes/auth/login.tsx"),
->>>>>>> 437883a (SCB API update)
     route("admin", "routes/admin/index.tsx"),
     route("admin/leads", "routes/admin/leads.tsx"),
     route("admin/pipeline", "routes/admin/pipeline.tsx"),
@@ -37,8 +34,5 @@ export default [
     route("admin/calendar", "routes/admin/calendar.tsx"),
     route("admin/email", "routes/admin/email.tsx"),
     route("admin/settings", "routes/admin/settings.tsx"),
-<<<<<<< HEAD
-=======
     route("admin/login", "routes/auth/admin-login.tsx"),
->>>>>>> 437883a (SCB API update)
 ] satisfies RouteConfig;

@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import type { ReactNode } from "react";
-=======
 import type { ReactNode, RefObject } from "react";
->>>>>>> 437883a (SCB API update)
 import { useEffect, useRef } from "react";
 
 type AdminDropdownProps = {
@@ -10,22 +6,6 @@ type AdminDropdownProps = {
   onClose: () => void;
   children: ReactNode;
   className?: string;
-<<<<<<< HEAD
-};
-
-export function AdminDropdown({ isOpen, onClose, children, className = "" }: AdminDropdownProps) {
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as HTMLElement;
-
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(target) &&
-        !target.closest(".dropdown-toggle")
-      ) {
-=======
   containerRef?: RefObject<HTMLElement | null>;
   triggerRef?: RefObject<HTMLElement | null>;
 };
@@ -48,16 +28,10 @@ export function AdminDropdown({
       const isInsideTrigger = triggerRef?.current?.contains(target);
 
       if (!isInsideContainer && !isInsideDropdown && !isInsideTrigger) {
->>>>>>> 437883a (SCB API update)
         onClose();
       }
     }
 
-<<<<<<< HEAD
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
-=======
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
@@ -72,7 +46,6 @@ export function AdminDropdown({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [containerRef, onClose, triggerRef]);
->>>>>>> 437883a (SCB API update)
 
   if (!isOpen) {
     return null;

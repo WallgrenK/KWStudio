@@ -1,41 +1,19 @@
-<<<<<<< HEAD
-=======
 import { supabase } from "~/lib/supabase";
 import type { ScbRequestBody } from "~/services/scbMapper";
 
->>>>>>> 437883a (SCB API update)
 type ApiResult<T> = {
   ok: boolean;
   data?: T;
   error?: string;
 };
 
-<<<<<<< HEAD
-export type ScbDiscoverFilters = {
-  region?: string;
-  municipality?: string;
-  industry?: string;
-  status?: string;
-  tax?: string;
-  employees?: string;
-  registeredFrom?: string;
-  advertising?: string;
-};
-
-const apiUrl = import.meta.env.VITE_KWSTUDIO_API_URL;
-const adminApiKey = import.meta.env.VITE_KWSTUDIO_ADMIN_API_KEY;
-=======
 const apiUrl = import.meta.env.VITE_KWSTUDIO_API_URL;
 
 export const isKwstudioApiConfigured = Boolean(apiUrl);
->>>>>>> 437883a (SCB API update)
 
 function apiNotConfigured<T>(): ApiResult<T> {
   return {
     ok: false,
-<<<<<<< HEAD
-    error: "KWStudio API is not configured. Set VITE_KWSTUDIO_API_URL to enable this action.",
-=======
     error: "API not configured. Set VITE_KWSTUDIO_API_URL.",
   };
 }
@@ -44,16 +22,10 @@ function authRequired<T>(): ApiResult<T> {
   return {
     ok: false,
     error: "Authentication required. Sign in before calling the KWStudio API.",
->>>>>>> 437883a (SCB API update)
   };
 }
 
 async function requestApi<T>(path: string, body: unknown): Promise<ApiResult<T>> {
-<<<<<<< HEAD
-  if (!apiUrl) return apiNotConfigured<T>();
-
-  try {
-=======
   if (!isKwstudioApiConfigured) return apiNotConfigured<T>();
 
   try {
@@ -63,17 +35,11 @@ async function requestApi<T>(path: string, body: unknown): Promise<ApiResult<T>>
 
     if (!session?.access_token) return authRequired<T>();
 
->>>>>>> 437883a (SCB API update)
     const response = await fetch(`${apiUrl.replace(/\/$/, "")}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-<<<<<<< HEAD
-        // Temporary admin-demo header. Replace with real auth before production use.
-        ...(adminApiKey ? { "X-KWStudio-Admin-Key": adminApiKey } : {}),
-=======
         Authorization: `Bearer ${session.access_token}`,
->>>>>>> 437883a (SCB API update)
       },
       body: JSON.stringify(body),
     });
@@ -98,30 +64,22 @@ async function requestApi<T>(path: string, body: unknown): Promise<ApiResult<T>>
   }
 }
 
-<<<<<<< HEAD
-export async function discoverScbLeads(filters: ScbDiscoverFilters) {
-  return requestApi<{ importRunId: string; importedCount: number }>("/companies", { filters });
-=======
 export async function discoverScbLeads(body: ScbRequestBody) {
   return requestApi<{ importRunId: string; importedCount: number; skippedLegalFormCount: number }>("/leads/discover", body);
 }
 
 export async function auditAllWebsites() {
   return requestApi<{ queued: number; status: string }>("/leads/audit-all", {});
->>>>>>> 437883a (SCB API update)
 }
 
 export async function auditLeadWebsite(leadId: string) {
   return requestApi<{ auditId: string; status: string }>("/audit", { leadId });
 }
 
-<<<<<<< HEAD
-=======
 export async function recalculateLeadScores() {
   return requestApi<{ updated: number; status: string }>("/leads/recalculate-scores", {});
 }
 
->>>>>>> 437883a (SCB API update)
 export async function refreshLeadScore(leadId: string) {
   return requestApi<{ leadId: string; score: number }>("/score", { leadId });
 }

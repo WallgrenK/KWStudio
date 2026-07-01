@@ -38,10 +38,6 @@ import {
   invoices,
   leadDashboardStates,
   leadInsights,
-<<<<<<< HEAD
-  leadStageMetrics,
-=======
->>>>>>> 437883a (SCB API update)
   payments,
   pipelineDeals,
   projectStatusMetrics,
@@ -59,10 +55,7 @@ import {
   websiteHealthMetrics,
   websiteReports,
   websiteScores,
-<<<<<<< HEAD
-=======
   type AdminStatus,
->>>>>>> 437883a (SCB API update)
   type AdminLead,
   type AdminProject,
   type Client,
@@ -77,9 +70,6 @@ import {
   type WebsiteReport,
 } from "~/data/admin";
 import { isSupabaseConfigured } from "~/lib/supabase";
-<<<<<<< HEAD
-import { auditLeadWebsite, discoverScbLeads, refreshLeadScore, type ScbDiscoverFilters } from "~/services/kwstudioApi";
-=======
 import {
   auditAllWebsites,
   auditLeadWebsite,
@@ -88,7 +78,6 @@ import {
   recalculateLeadScores,
   refreshLeadScore,
 } from "~/services/kwstudioApi";
->>>>>>> 437883a (SCB API update)
 import {
   getLeads,
   mapLeadPriority,
@@ -97,10 +86,7 @@ import {
   type LeadWithCompanyAndAudit,
   type LeadsResult,
 } from "~/services/leads";
-<<<<<<< HEAD
-=======
 import { buildScbRequest, type ScbLeadFinderFilters } from "~/services/scbMapper";
->>>>>>> 437883a (SCB API update)
 
 const leadColumns: Array<AdminTableColumn<AdminLead>> = [
   {
@@ -144,8 +130,6 @@ function Progress({ value }: { value: number }) {
   );
 }
 
-<<<<<<< HEAD
-=======
 function mapDashboardStatus(status: string): AdminStatus {
   const stage = mapLeadStage(status);
 
@@ -170,7 +154,6 @@ function toDashboardLead(lead: LeadWithCompanyAndAudit): AdminLead {
   };
 }
 
->>>>>>> 437883a (SCB API update)
 type WorkflowCard = {
   title: string;
   description: string;
@@ -195,12 +178,6 @@ function MetricGrid({ metrics }: { metrics: Parameters<typeof MiniMetricCard>[0]
 }
 
 export function DashboardPage() {
-<<<<<<< HEAD
-  const pipelineSummary = ["New", "Qualified", "Proposal", "Won"].map((stage) => ({
-    stage,
-    count: pipelineDeals.filter((deal) => deal.stage === stage).length,
-  }));
-=======
   const [leadResult, setLeadResult] = useState<LeadsResult>(defaultLeadResult);
   const [isLoadingLeads, setIsLoadingLeads] = useState(true);
 
@@ -238,18 +215,13 @@ export function DashboardPage() {
     : leadResult.source === "supabase"
       ? "Live from Supabase"
       : leadResult.error ?? "Supabase not configured";
->>>>>>> 437883a (SCB API update)
 
   return (
     <AdminShell title="Dashboard" description="A focused overview of KWStudio leads, active work and operational priorities.">
       <div className="grid grid-cols-12 gap-4 md:gap-6">
         <div className="col-span-12 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
-<<<<<<< HEAD
-            { label: "Leads", value: "48", detail: "+12% this month", href: "/admin/leads" },
-=======
             { label: "Leads", value: isLoadingLeads ? "..." : String(dashboardLeads.length), detail: leadsDetail, href: "/admin/leads" },
->>>>>>> 437883a (SCB API update)
             { label: "Active projects", value: "7", detail: "3 launches scheduled", href: "/admin/projects" },
             { label: "Website score", value: "88", detail: "Average across reports", href: "/admin/websites" },
             { label: "Outstanding", value: "50k SEK", detail: "1 overdue invoice", href: "/admin/finance" },
@@ -338,11 +310,7 @@ export function DashboardPage() {
             <h2 className="text-lg font-semibold text-gray-800">Recent leads</h2>
             <Link className="text-sm font-medium text-[#2E75BD]" to="/admin/leads">View all</Link>
           </div>
-<<<<<<< HEAD
-          <AdminTable columns={leadColumns.slice(0, 4)} rows={adminLeads.slice(0, 4)} getRowKey={(lead) => lead.id} />
-=======
           <AdminTable columns={leadColumns.slice(0, 4)} rows={recentLeadRows} getRowKey={(lead) => lead.id} emptyMessage="No Supabase leads found." />
->>>>>>> 437883a (SCB API update)
         </div>
         <div className="col-span-12 xl:col-span-4">
           <QuickActions actions={quickActions} />
@@ -360,11 +328,7 @@ const leadPriorities: Array<LeadPriority | "All"> = ["All", "High", "Medium", "L
 
 const leadServices: Array<LeadServiceInterest | "All"> = ["All", "New website", "Redesign", "SEO / audit", "Care plan", "Ecommerce"];
 
-<<<<<<< HEAD
-const defaultLeadResult: LeadsResult = { leads: [], latestImport: null, source: "demo" };
-=======
 const defaultLeadResult: LeadsResult = { leads: [], latestImport: null, source: "unconfigured" };
->>>>>>> 437883a (SCB API update)
 const leadsPageSizeOptions = [10, 25, 50];
 
 function formatCurrency(value: number | null) {
@@ -391,11 +355,7 @@ function leadCompanyName(lead: LeadWithCompanyAndAudit) {
 }
 
 function leadSourceLabel(lead: LeadWithCompanyAndAudit): LeadSource {
-<<<<<<< HEAD
-  const source = toTitle(lead.source).toLowerCase();
-=======
   const source = (lead.source ?? "").toLowerCase().replace(/[_-]/g, " ");
->>>>>>> 437883a (SCB API update)
   if (source.includes("scb")) return "SCB company search";
   if (source.includes("manual")) return "Manual prospect";
   if (source.includes("referral")) return "Referral";
@@ -438,10 +398,7 @@ function buildLeadMetrics(leads: LeadWithCompanyAndAudit[]) {
   const conversionRate = leads.length > 0 ? Math.round((statusCount("Won") / leads.length) * 100) : 0;
 
   return [
-<<<<<<< HEAD
-=======
     { label: "Total leads", value: String(leads.length), detail: "All leads currently loaded", href: "/admin/leads" },
->>>>>>> 437883a (SCB API update)
     { label: "New leads", value: String(statusCount("New")), detail: "Ready for first review", href: "/admin/leads" },
     { label: "Qualified", value: String(statusCount("Qualified")), detail: "Ready for discovery", href: "/admin/pipeline" },
     { label: "Proposal value", value: formatCurrency(proposalValue), detail: "Open proposal stage", href: "/admin/proposals" },
@@ -468,8 +425,6 @@ function buildLeadSourceStats(leads: LeadWithCompanyAndAudit[]) {
     });
 }
 
-<<<<<<< HEAD
-=======
 function hasScbNarrowingFilters(filters: ScbLeadFinderFilters) {
   return Boolean(
     filters.county
@@ -482,7 +437,6 @@ function hasScbNarrowingFilters(filters: ScbLeadFinderFilters) {
   );
 }
 
->>>>>>> 437883a (SCB API update)
 function LeadStageBadge({ stage }: { stage: LeadStage }) {
   const styles: Record<LeadStage, string> = {
     New: "bg-blue-50 text-[#2E75BD]",
@@ -536,27 +490,6 @@ function SelectField({
 
 function ScbLeadFinderPanel({
   onDiscover,
-<<<<<<< HEAD
-  onImport,
-  message,
-}: {
-  onDiscover: (filters: ScbDiscoverFilters) => void;
-  onImport: () => void;
-  message: string | null;
-}) {
-  const [filters, setFilters] = useState<ScbDiscoverFilters>({
-    region: scbLeadFinderFilters.region[0]?.value,
-    municipality: scbLeadFinderFilters.municipality[0]?.value,
-    industry: scbLeadFinderFilters.industry[0]?.value,
-    status: scbLeadFinderFilters.status[0]?.value,
-    tax: scbLeadFinderFilters.tax[0]?.value,
-    employees: scbLeadFinderFilters.employees[1]?.value,
-    registeredFrom: scbLeadFinderFilters.registered[1]?.value,
-    advertising: scbLeadFinderFilters.advertising[2]?.value,
-  });
-
-  const setFilter = (key: keyof ScbDiscoverFilters) => (value: string) => {
-=======
   onAuditAll,
   onRecalculateScores,
   message,
@@ -580,7 +513,6 @@ function ScbLeadFinderPanel({
   });
 
   const setFilter = (key: keyof ScbLeadFinderFilters) => (value: string) => {
->>>>>>> 437883a (SCB API update)
     setFilters((current) => ({ ...current, [key]: value }));
   };
 
@@ -588,26 +520,6 @@ function ScbLeadFinderPanel({
     <Panel title="SCB Lead Finder">
       <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
         <p className="text-sm leading-6 text-gray-600">
-<<<<<<< HEAD
-          Static demo panel prepared for SCB endpoints: <span className="font-medium text-gray-800">GET /categories</span>,{" "}
-          <span className="font-medium text-gray-800">GET /variables</span>, <span className="font-medium text-gray-800">POST /count</span> and{" "}
-          <span className="font-medium text-gray-800">POST /companies</span>.
-        </p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SelectField label="Lan" options={scbLeadFinderFilters.region} value={filters.region ?? ""} onChange={setFilter("region")} />
-        <SelectField label="Kommun" options={scbLeadFinderFilters.municipality} value={filters.municipality ?? ""} onChange={setFilter("municipality")} />
-        <SelectField label="Bransch / SNI" options={scbLeadFinderFilters.industry} value={filters.industry ?? ""} onChange={setFilter("industry")} />
-        <SelectField label="Foretagsstatus" options={scbLeadFinderFilters.status} value={filters.status ?? ""} onChange={setFilter("status")} />
-        <SelectField label="F-skatt / moms" options={scbLeadFinderFilters.tax} value={filters.tax ?? ""} onChange={setFilter("tax")} />
-        <SelectField label="Anstallda" options={scbLeadFinderFilters.employees} value={filters.employees ?? ""} onChange={setFilter("employees")} />
-        <SelectField label="Registrering" options={scbLeadFinderFilters.registered} value={filters.registeredFrom ?? ""} onChange={setFilter("registeredFrom")} />
-        <SelectField label="Reklamstatus" options={scbLeadFinderFilters.advertising} value={filters.advertising ?? ""} onChange={setFilter("advertising")} />
-      </div>
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-        <button className="btn btn-primary" type="button" onClick={() => onDiscover(filters)}>Find companies</button>
-        <button className="btn btn-outline" type="button" onClick={onImport}>Import selected</button>
-=======
           {isKwstudioApiConfigured
             ? "Render API is configured for SCB discovery, website audits and lead score recalculation."
             : "API not configured. Set VITE_KWSTUDIO_API_URL."}
@@ -633,7 +545,6 @@ function ScbLeadFinderPanel({
         <button className="btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking} onClick={onRecalculateScores}>
           Recalculate scores
         </button>
->>>>>>> 437883a (SCB API update)
       </div>
       {message ? <p className="mt-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-600">{message}</p> : null}
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -789,10 +700,6 @@ export function LeadsPage() {
   const [pageSize, setPageSize] = useState(25);
   const [leadResult, setLeadResult] = useState<LeadsResult>(defaultLeadResult);
   const [isLoading, setIsLoading] = useState(true);
-<<<<<<< HEAD
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-
-=======
   const [isApiWorking, setIsApiWorking] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -803,7 +710,6 @@ export function LeadsPage() {
     setIsLoading(false);
   };
 
->>>>>>> 437883a (SCB API update)
   useEffect(() => {
     let isMounted = true;
 
@@ -812,8 +718,6 @@ export function LeadsPage() {
       .then((result) => {
         if (isMounted) setLeadResult(result);
       })
-<<<<<<< HEAD
-=======
       .catch((error) => {
         console.error("Could not load leads.", error);
         if (isMounted) {
@@ -825,7 +729,6 @@ export function LeadsPage() {
           });
         }
       })
->>>>>>> 437883a (SCB API update)
       .finally(() => {
         if (isMounted) setIsLoading(false);
       });
@@ -837,15 +740,12 @@ export function LeadsPage() {
 
   const leads = leadResult.leads;
   const metrics = useMemo(() => buildLeadMetrics(leads), [leads]);
-<<<<<<< HEAD
-=======
   const visibleMetrics = isLoading
     ? [
         { label: "Total leads", value: "...", detail: "Loading from Supabase", href: "/admin/leads" },
         { label: "New leads", value: "...", detail: "Loading from Supabase", href: "/admin/leads" },
       ]
     : metrics;
->>>>>>> 437883a (SCB API update)
   const sourceStats = useMemo(() => buildLeadSourceStats(leads), [leads]);
 
   useEffect(() => {
@@ -901,31 +801,6 @@ export function LeadsPage() {
     if (result.ok) updateLocalStatus(lead.id, nextStatus);
   };
 
-<<<<<<< HEAD
-  const handleDiscover = async (filters: ScbDiscoverFilters) => {
-    const result = await discoverScbLeads(filters);
-    setActionMessage(result.ok
-      ? `SCB import queued. ${result.data?.importedCount ?? 0} companies prepared.`
-      : result.error ?? "SCB import could not be started.");
-  };
-
-  const handleImport = () => {
-    setActionMessage("Import selected is wired for the future Render API flow. Selectable SCB results will be added in the next pass.");
-  };
-
-  const handleAudit = async (lead: LeadWithCompanyAndAudit) => {
-    const result = await auditLeadWebsite(lead.id);
-    setActionMessage(result.ok
-      ? `Website audit queued for ${leadCompanyName(lead)}.`
-      : result.error ?? "Website audit could not be started.");
-  };
-
-  const handleRefreshScore = async (lead: LeadWithCompanyAndAudit) => {
-    const result = await refreshLeadScore(lead.id);
-    setActionMessage(result.ok
-      ? `Lead score refreshed for ${leadCompanyName(lead)}.`
-      : result.error ?? "Lead score could not be refreshed.");
-=======
   const handleDiscover = async (filters: ScbLeadFinderFilters) => {
     const scbRequest = buildScbRequest(filters);
 
@@ -995,7 +870,6 @@ export function LeadsPage() {
     } finally {
       setIsApiWorking(false);
     }
->>>>>>> 437883a (SCB API update)
   };
 
   const leadTableColumns: Array<AdminTableColumn<LeadWithCompanyAndAudit>> = [
@@ -1011,13 +885,6 @@ export function LeadsPage() {
     },
     {
       key: "contact",
-<<<<<<< HEAD
-      header: "Contact",
-      render: (lead) => (
-        <div>
-          <span className="block text-sm text-gray-700">{lead.company?.email ?? "No email"}</span>
-          <span className="mt-0.5 block text-xs text-gray-500">{lead.company?.phone ?? lead.company?.org_number ?? "No phone"}</span>
-=======
       header: "Company details",
       render: (lead) => (
         <div>
@@ -1039,17 +906,11 @@ export function LeadsPage() {
             <span className="block text-sm text-gray-500">No website</span>
           )}
           <span className="mt-0.5 block text-xs text-gray-500">{lead.company?.website_found ? "Website found" : "Website missing"}</span>
->>>>>>> 437883a (SCB API update)
         </div>
       ),
     },
     { key: "source", header: "Source", render: (lead) => leadSourceLabel(lead) },
     { key: "service", header: "Service", render: (lead) => lead.service_interest ?? "Website opportunity" },
-<<<<<<< HEAD
-    { key: "value", header: "Value", render: (lead) => <span className="font-medium text-gray-800">{formatCurrency(lead.estimated_value)}</span> },
-    { key: "stage", header: "Stage", render: (lead) => <LeadStageBadge stage={mapLeadStage(lead.status)} /> },
-    { key: "priority", header: "Priority", render: (lead) => <PriorityBadge priority={mapLeadPriority(lead.priority)} /> },
-=======
     { key: "score", header: "Score", render: (lead) => <span className="font-medium text-gray-800">{lead.score ?? 0}/100</span> },
     { key: "stage", header: "Stage", render: (lead) => <LeadStageBadge stage={mapLeadStage(lead.status)} /> },
     { key: "priority", header: "Priority", render: (lead) => <PriorityBadge priority={mapLeadPriority(lead.priority)} /> },
@@ -1067,7 +928,6 @@ export function LeadsPage() {
         </div>
       ),
     },
->>>>>>> 437883a (SCB API update)
     { key: "next", header: "Next action", render: (lead) => lead.next_action ?? "Review lead" },
     { key: "activity", header: "Last activity", render: (lead) => formatShortDate(lead.updated_at) },
     { key: "owner", header: "Assigned to", render: (lead) => lead.assigned_to ?? "Kevin" },
@@ -1076,13 +936,8 @@ export function LeadsPage() {
       header: "Actions",
       render: (lead) => (
         <div className="flex flex-wrap gap-2">
-<<<<<<< HEAD
-          <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]" type="button" onClick={() => handleAudit(lead)}>Audit</button>
-          <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]" type="button" onClick={() => handleRefreshScore(lead)}>Score</button>
-=======
           <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD] disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={!isKwstudioApiConfigured || isApiWorking} onClick={() => handleAudit(lead)}>Audit</button>
           <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD] disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={!isKwstudioApiConfigured || isApiWorking} onClick={() => handleRefreshScore(lead)}>Score</button>
->>>>>>> 437883a (SCB API update)
           <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]" type="button" onClick={() => handleStatusUpdate(lead, "Qualified")}>Qualify</button>
         </div>
       ),
@@ -1091,21 +946,13 @@ export function LeadsPage() {
 
   return (
     <AdminShell title="Leads" description="A working dashboard for finding, qualifying and converting website opportunities.">
-<<<<<<< HEAD
-      <MetricGrid metrics={leads.length > 0 ? metrics : leadStageMetrics} />
-=======
       <MetricGrid metrics={visibleMetrics} />
->>>>>>> 437883a (SCB API update)
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-gray-800">
-<<<<<<< HEAD
-              {isLoading ? "Loading leads" : leadResult.source === "supabase" ? "Connected to Supabase" : "Demo fallback active"}
-=======
               {isLoading ? "Loading leads" : leadResult.source === "supabase" ? "Connected to Supabase" : "Supabase not connected"}
->>>>>>> 437883a (SCB API update)
             </p>
             <p className="mt-1 text-sm text-gray-500">
               {leadResult.error ?? (isSupabaseConfigured ? "Lead data is read through the Supabase client." : "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to read live leads.")}
@@ -1126,9 +973,6 @@ export function LeadsPage() {
       </div>
 
       <div className="mb-6">
-<<<<<<< HEAD
-        <ScbLeadFinderPanel onDiscover={handleDiscover} onImport={handleImport} message={actionMessage} />
-=======
         <ScbLeadFinderPanel
           onDiscover={handleDiscover}
           onAuditAll={handleAuditAll}
@@ -1136,7 +980,6 @@ export function LeadsPage() {
           message={actionMessage}
           isWorking={isApiWorking}
         />
->>>>>>> 437883a (SCB API update)
       </div>
 
       <div className="mb-6">
@@ -1157,11 +1000,7 @@ export function LeadsPage() {
             ]}
           />
           {isLoading ? (
-<<<<<<< HEAD
-            <EmptyState title="Loading leads" description="Lead records are being prepared from Supabase or the local demo fallback." />
-=======
             <EmptyState title="Loading leads" description="Lead records are being loaded from Supabase." />
->>>>>>> 437883a (SCB API update)
           ) : (
             <>
               <AdminTable columns={leadTableColumns} rows={paginatedRows} getRowKey={(lead) => lead.id} emptyMessage="No leads found for the selected filters." />

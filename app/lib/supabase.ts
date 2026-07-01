@@ -250,15 +250,6 @@ export type Database = {
 };
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-<<<<<<< HEAD
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-
-export const supabase = createClient<Database>(
-  supabaseUrl || "https://example.supabase.co",
-  supabaseAnonKey || "missing-anon-key",
-=======
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
@@ -275,7 +266,6 @@ const configuredSupabaseAnonKey = supabaseAnonKey ?? "supabase-not-configured";
 export const supabase = createClient<Database>(
   configuredSupabaseUrl,
   configuredSupabaseAnonKey,
->>>>>>> 437883a (SCB API update)
   {
     auth: {
       persistSession: true,

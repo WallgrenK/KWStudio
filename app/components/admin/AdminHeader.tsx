@@ -5,13 +5,6 @@ import { AdminNotificationDropdown } from "~/components/admin/AdminNotificationD
 import { AdminUserDropdown } from "~/components/admin/AdminUserDropdown";
 import { useSidebar } from "~/components/admin/SidebarContext";
 
-<<<<<<< HEAD
-export function AdminHeader() {
-  const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
-  const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
-  const inputRef = useRef<HTMLInputElement>(null);
-
-=======
 type AdminHeaderProps = {
   displayName: string;
   email: string;
@@ -22,7 +15,6 @@ export function AdminHeader({ displayName, email, onSignOut }: AdminHeaderProps)
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
   const inputRef = useRef<HTMLInputElement>(null);
->>>>>>> 437883a (SCB API update)
   const handleToggle = () => {
     if (window.innerWidth >= 1024) {
       toggleSidebar();
@@ -126,11 +118,7 @@ export function AdminHeader({ displayName, email, onSignOut }: AdminHeaderProps)
           <div className="flex items-center gap-2 2xsm:gap-3">
             <AdminNotificationDropdown />
           </div>
-<<<<<<< HEAD
-          <AdminUserDropdown />
-=======
           <AdminUserDropdown displayName={displayName} email={email} onSignOut={onSignOut} />
->>>>>>> 437883a (SCB API update)
         </div>
       </div>
     </header>

@@ -592,47 +592,6 @@ export const leadSourceStats: LeadSourceStat[] = [
 ];
 
 export const scbLeadFinderFilters: Record<string, ScbLeadFinderOption[]> = {
-<<<<<<< HEAD
-  region: [
-    { id: "region-stockholm", label: "Stockholm county", value: "01" },
-    { id: "region-uppsala", label: "Uppsala county", value: "03" },
-    { id: "region-skane", label: "Skane county", value: "12" },
-  ],
-  municipality: [
-    { id: "municipality-stockholm", label: "Stockholm", value: "0180" },
-    { id: "municipality-solna", label: "Solna", value: "0184" },
-    { id: "municipality-nacka", label: "Nacka", value: "0182" },
-  ],
-  industry: [
-    { id: "industry-retail", label: "Retail and ecommerce", value: "47" },
-    { id: "industry-health", label: "Health and wellness", value: "86" },
-    { id: "industry-consulting", label: "Business consulting", value: "70" },
-  ],
-  status: [
-    { id: "status-active", label: "Active companies", value: "active" },
-    { id: "status-new", label: "Registered last 12 months", value: "new" },
-    { id: "status-employer", label: "Registered employer", value: "employer" },
-  ],
-  tax: [
-    { id: "tax-f", label: "Approved for F-tax", value: "f-tax" },
-    { id: "tax-vat", label: "VAT registered", value: "vat" },
-    { id: "tax-both", label: "F-tax and VAT", value: "both" },
-  ],
-  employees: [
-    { id: "employees-0", label: "0 employees", value: "0" },
-    { id: "employees-1-4", label: "1-4 employees", value: "1-4" },
-    { id: "employees-5-19", label: "5-19 employees", value: "5-19" },
-  ],
-  registered: [
-    { id: "registered-30", label: "Last 30 days", value: "30d" },
-    { id: "registered-90", label: "Last 90 days", value: "90d" },
-    { id: "registered-year", label: "This year", value: "year" },
-  ],
-  advertising: [
-    { id: "advertising-ok", label: "Advertising allowed", value: "allowed" },
-    { id: "advertising-blocked", label: "No advertising", value: "blocked" },
-    { id: "advertising-any", label: "Any status", value: "any" },
-=======
   county: [
     { id: "county-any", label: "Any county", value: "" },
     { id: "county-stockholm", label: "Stockholm county", value: "stockholm" },
@@ -703,7 +662,6 @@ export const scbLeadFinderFilters: Record<string, ScbLeadFinderOption[]> = {
     { id: "advertising-any", label: "Any advertising status", value: "" },
     { id: "advertising-ok", label: "Accepts advertising", value: "accepts_advertising" },
     { id: "advertising-blocked", label: "Advertising blocked", value: "advertising_blocked" },
->>>>>>> 437883a (SCB API update)
   ],
 };
 
