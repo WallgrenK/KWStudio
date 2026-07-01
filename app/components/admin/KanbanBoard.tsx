@@ -8,7 +8,7 @@ export type KanbanColumn = {
 
 export function KanbanBoard({ columns }: { columns: KanbanColumn[] }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-4">
+    <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
       {columns.map((column) => (
         <section key={column.id} className="rounded-2xl border border-gray-200 bg-white p-4">
           <div className="mb-4 flex items-center justify-between">
@@ -17,7 +17,15 @@ export function KanbanBoard({ columns }: { columns: KanbanColumn[] }) {
               {column.items.length}
             </span>
           </div>
-          <div className="space-y-3">{column.items}</div>
+          <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+            {column.items.length > 0 ? (
+              column.items
+            ) : (
+              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-xs leading-5 text-gray-500">
+                No items in this stage.
+              </p>
+            )}
+          </div>
         </section>
       ))}
     </div>

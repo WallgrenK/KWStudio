@@ -26,7 +26,6 @@ import {
   calendarEvents,
   clientHealthMetrics,
   clients,
-  dashboardFinanceMetrics,
   dashboardTasks,
   emailMessages,
   expenses,
@@ -36,7 +35,6 @@ import {
   files,
   followUps,
   invoices,
-  leadDashboardStates,
   leadInsights,
   payments,
   pipelineDeals,
@@ -206,6 +204,9 @@ export function DashboardPage() {
 
   const dashboardLeads = leadResult.leads;
   const recentLeadRows = dashboardLeads.slice(0, 4).map(toDashboardLead);
+  const highValueOpportunities = [...dashboardLeads]
+    .sort((a, b) => (b.estimated_value ?? b.score ?? 0) - (a.estimated_value ?? a.score ?? 0))
+    .slice(0, 3);
   const pipelineSummary = ["New", "Qualified", "Proposal", "Won"].map((stage) => ({
     stage,
     count: dashboardLeads.filter((lead) => mapLeadStage(lead.status) === stage).length,
@@ -235,9 +236,9 @@ export function DashboardPage() {
           <Timeline title="Upcoming meetings" items={upcomingMeetings} />
         </div>
 
-        <div className="col-span-12 xl:col-span-4">
-          <Panel title="Pipeline overview">
-            <div className="grid gap-3">
+        <div className="col-span-12 xl:col-span-5">
+          <Panel title="Pipeline summary">
+            <div className="grid gap-3 sm:grid-cols-4 xl:grid-cols-2">
               {pipelineSummary.map((item) => (
                 <div key={item.stage} className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3">
                   <span className="text-sm font-medium text-gray-700">{item.stage}</span>
@@ -245,33 +246,35 @@ export function DashboardPage() {
                 </div>
               ))}
             </div>
-          </Panel>
-        </div>
-        <div className="col-span-12 xl:col-span-4">
-          <Panel title="Recent website analyses">
-            <div className="space-y-3">
-              {analyses.slice(0, 3).map((analysis) => (
-                <Link key={analysis.id} to="/admin/analyzer" className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-[#2E75BD]">
+            <div className="mt-4 space-y-3">
+              {highValueOpportunities.map((lead) => (
+                <Link key={lead.id} to="/admin/pipeline" className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-[#2E75BD]">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="truncate text-sm font-medium text-gray-700">{analysis.url}</span>
-                    <strong className="text-sm text-gray-900">{analysis.score}</strong>
+                    <span className="truncate text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</span>
+                    <span className="text-xs font-medium text-[#2E75BD]">{formatCurrency(lead.estimated_value)}</span>
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">{analysis.findings} findings</p>
+                  <p className="mt-1 truncate text-xs text-gray-500">{lead.next_action ?? lead.service_interest ?? "Review opportunity"}</p>
                 </Link>
               ))}
             </div>
+            <Link className="mt-4 inline-flex text-sm font-medium text-[#2E75BD]" to="/admin/pipeline">
+              View pipeline
+            </Link>
           </Panel>
         </div>
-        <div className="col-span-12 xl:col-span-4">
-          <Panel title="Pending follow-ups">
+        <div className="col-span-12 xl:col-span-7">
+          <Panel title="Recent activity">
             <div className="space-y-3">
-              {followUps.slice(0, 3).map((item) => (
-                <Link key={item.id} to="/admin/follow-ups" className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-[#2E75BD]">
+              {[
+                ...followUps.slice(0, 2).map((item) => ({ id: item.id, title: item.title, detail: `${item.person} - ${item.due}`, href: "/admin/follow-ups", status: item.status })),
+                ...analyses.slice(0, 2).map((analysis) => ({ id: analysis.id, title: analysis.url, detail: `${analysis.findings} findings - score ${analysis.score}`, href: "/admin/analyzer", status: "Review" as AdminStatus })),
+              ].map((item) => (
+                <Link key={item.id} to={item.href} className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-[#2E75BD]">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-medium text-gray-700">{item.title}</span>
+                    <span className="truncate text-sm font-medium text-gray-700">{item.title}</span>
                     <StatusBadge status={item.status} />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">{item.person} - {item.due}</p>
+                  <p className="mt-1 truncate text-xs text-gray-500">{item.detail}</p>
                 </Link>
               ))}
             </div>
@@ -281,7 +284,7 @@ export function DashboardPage() {
         <div className="col-span-12 xl:col-span-8">
           <Panel title="Active projects">
             <div className="grid gap-4 md:grid-cols-3">
-              {adminProjects.map((project) => (
+              {adminProjects.slice(0, 3).map((project) => (
                 <Link key={project.id} to="/admin/projects" className="rounded-xl border border-gray-100 p-4 transition hover:border-[#2E75BD]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -297,14 +300,6 @@ export function DashboardPage() {
             </div>
           </Panel>
         </div>
-        <div className="col-span-12 xl:col-span-4">
-          <Panel title="Finance">
-            <div className="grid gap-3">
-              {dashboardFinanceMetrics.map((metric) => <MiniMetricCard key={metric.label} {...metric} />)}
-            </div>
-          </Panel>
-        </div>
-
         <div className="col-span-12 xl:col-span-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">Recent leads</h2>
@@ -330,6 +325,43 @@ const leadServices: Array<LeadServiceInterest | "All"> = ["All", "New website", 
 
 const defaultLeadResult: LeadsResult = { leads: [], latestImport: null, source: "unconfigured" };
 const leadsPageSizeOptions = [10, 25, 50];
+type LeadWorkflowTab = "all" | "pipeline" | "follow-ups" | "proposals";
+
+const leadWorkflowTabs: Array<{ id: LeadWorkflowTab; label: string }> = [
+  { id: "all", label: "All Leads" },
+  { id: "pipeline", label: "Pipeline" },
+  { id: "follow-ups", label: "Follow-ups" },
+  { id: "proposals", label: "Proposals" },
+];
+
+function AdminTabs({
+  tabs,
+  activeTab,
+  onChange,
+}: {
+  tabs: Array<{ id: LeadWorkflowTab; label: string }>;
+  activeTab: LeadWorkflowTab;
+  onChange: (tab: LeadWorkflowTab) => void;
+}) {
+  return (
+    <div className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-gray-200 bg-white p-2">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+            activeTab === tab.id
+              ? "bg-[#2E75BD] text-white"
+              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+          }`}
+          type="button"
+          onClick={() => onChange(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function formatCurrency(value: number | null) {
   if (!value) return "-";
@@ -341,13 +373,6 @@ function formatShortDate(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("sv-SE", { month: "short", day: "numeric" }).format(date);
-}
-
-function toTitle(value: string | null | undefined) {
-  if (!value) return "-";
-  return value
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function leadCompanyName(lead: LeadWithCompanyAndAudit) {
@@ -406,23 +431,6 @@ function buildLeadMetrics(leads: LeadWithCompanyAndAudit[]) {
     { label: "Lost / archived", value: String(statusCount("Lost")), detail: "Review source quality", href: "/admin/leads" },
     { label: "Conversion rate", value: `${conversionRate}%`, detail: "Won from current lead set", href: "/admin/leads" },
   ];
-}
-
-function buildLeadSourceStats(leads: LeadWithCompanyAndAudit[]) {
-  return leadSources
-    .filter((source): source is LeadSource => source !== "All")
-    .map((source) => {
-      const count = leads.filter((lead) => leadSourceLabel(lead) === source).length;
-      const details: Record<LeadSource, string> = {
-        "Website form": "Inbound enquiries from kwstudio.se",
-        "SCB company search": "Companies discovered for qualification",
-        "Manual prospect": "Hand-picked local businesses",
-        Referral: "Warm intros from existing clients",
-        LinkedIn: "Founder outreach and content replies",
-        "Audit tool": "Website report requests",
-      };
-      return { source, count, detail: details[source] };
-    });
 }
 
 function hasScbNarrowingFilters(filters: ScbLeadFinderFilters) {
@@ -570,7 +578,7 @@ function LeadPipeline({ leads }: { leads: LeadWithCompanyAndAudit[] }) {
         </div>
         <span className="text-sm font-medium text-[#2E75BD]">{leads.length} active records</span>
       </div>
-      <div className="grid gap-4 xl:grid-cols-7">
+      <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {leadStageOrder.map((stage) => {
           const stageLeads = leads.filter((lead) => mapLeadStage(lead.status) === stage);
           return (
@@ -579,24 +587,23 @@ function LeadPipeline({ leads }: { leads: LeadWithCompanyAndAudit[] }) {
                 <h3 className="text-sm font-semibold text-gray-800">{stage}</h3>
                 <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-500">{stageLeads.length}</span>
               </div>
-              <div className="space-y-3">
+              <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
                 {stageLeads.length > 0 ? stageLeads.map((lead) => (
                   <article key={lead.id} className="rounded-lg border border-gray-200 bg-white p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h4>
-                        <p className="mt-0.5 text-xs text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "Lead record"}</p>
+                      <div className="min-w-0">
+                        <h4 className="truncate text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h4>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "Lead record"}</p>
                       </div>
                       <PriorityBadge priority={mapLeadPriority(lead.priority)} />
                     </div>
-                    <p className="mt-3 text-xs font-medium text-gray-500">{leadSourceLabel(lead)}</p>
-                    <p className="mt-1 text-sm text-gray-700">{lead.service_interest ?? "Website opportunity"}</p>
+                    <p className="mt-3 truncate text-xs font-medium text-gray-500">{leadSourceLabel(lead)}</p>
+                    <p className="mt-1 truncate text-sm text-gray-700">{lead.service_interest ?? "Website opportunity"}</p>
                     <div className="mt-3 flex items-center justify-between gap-3 text-xs">
                       <span className="font-semibold text-gray-800">{formatCurrency(lead.estimated_value)}</span>
                       <span className="text-gray-500">{formatShortDate(lead.created_at)}</span>
                     </div>
-                    <p className="mt-3 text-xs leading-5 text-gray-500">{lead.next_action ?? "Review opportunity"}</p>
-                    <div className="mt-3"><LeadStageBadge stage={mapLeadStage(lead.status)} /></div>
+                    <p className="mt-2 truncate text-xs text-gray-500">{lead.next_action ?? "Review opportunity"}</p>
                   </article>
                 )) : (
                   <p className="rounded-lg border border-dashed border-gray-200 bg-white p-3 text-xs leading-5 text-gray-500">No leads in this stage.</p>
@@ -690,6 +697,96 @@ function LeadsTablePagination({
   );
 }
 
+function LeadDetailItem({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</dt>
+      <dd className="mt-1 text-sm leading-6 text-gray-700">{children}</dd>
+    </div>
+  );
+}
+
+function LeadDetailsPanel({
+  lead,
+  isWorking,
+  onClose,
+  onAudit,
+  onRefreshScore,
+  onQualify,
+}: {
+  lead: LeadWithCompanyAndAudit;
+  isWorking: boolean;
+  onClose: () => void;
+  onAudit: (lead: LeadWithCompanyAndAudit) => void;
+  onRefreshScore: (lead: LeadWithCompanyAndAudit) => void;
+  onQualify: (lead: LeadWithCompanyAndAudit) => void;
+}) {
+  const websiteUrl = lead.company?.website_url;
+
+  return (
+    <aside className="rounded-2xl border border-gray-200 bg-white p-5 xl:sticky xl:top-6">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Lead details</p>
+          <h2 className="mt-1 truncate text-lg font-semibold text-gray-800">{leadCompanyName(lead)}</h2>
+          <p className="mt-1 text-sm text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "No company context"}</p>
+        </div>
+        <button
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
+          type="button"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="mb-5 flex flex-wrap gap-2">
+        <LeadStageBadge stage={mapLeadStage(lead.status)} />
+        <PriorityBadge priority={mapLeadPriority(lead.priority)} />
+        <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+          Score {lead.score ?? 0}/100
+        </span>
+      </div>
+
+      <dl className="grid gap-4">
+        <LeadDetailItem label="Company name">{leadCompanyName(lead)}</LeadDetailItem>
+        <LeadDetailItem label="Organization number">{lead.company?.org_number ?? "No org number"}</LeadDetailItem>
+        <LeadDetailItem label="Email / contact">{lead.company?.email ?? lead.company?.phone ?? "No contact"}</LeadDetailItem>
+        <LeadDetailItem label="Website">
+          {websiteUrl ? (
+            <a className="break-all font-medium text-[#2E75BD]" href={websiteUrl} target="_blank" rel="noreferrer">
+              {websiteUrl}
+            </a>
+          ) : (
+            "No website"
+          )}
+        </LeadDetailItem>
+        <LeadDetailItem label="Source">{leadSourceLabel(lead)}</LeadDetailItem>
+        <LeadDetailItem label="Service">{lead.service_interest ?? "Website opportunity"}</LeadDetailItem>
+        <LeadDetailItem label="Stage">{mapLeadStage(lead.status)}</LeadDetailItem>
+        <LeadDetailItem label="Latest audit">
+          <span className="block font-medium text-gray-800">SEO {lead.latestAudit?.seo_score ?? "-"}</span>
+          <span className="mt-1 block text-gray-500">{lead.latestAudit?.audit_summary ?? lead.latestEvent?.message ?? "No audit summary"}</span>
+        </LeadDetailItem>
+        <LeadDetailItem label="Last activity">{formatShortDate(lead.updated_at)}</LeadDetailItem>
+        <LeadDetailItem label="Notes / next action">{lead.notes ?? lead.next_action ?? "Review lead"}</LeadDetailItem>
+      </dl>
+
+      <div className="mt-6 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+        <button className="btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking} onClick={() => onAudit(lead)}>
+          Audit
+        </button>
+        <button className="btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking} onClick={() => onRefreshScore(lead)}>
+          Score
+        </button>
+        <button className="btn btn-primary" type="button" onClick={() => onQualify(lead)}>
+          Qualify
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 export function LeadsPage() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<LeadSource | "All">("All");
@@ -702,6 +799,9 @@ export function LeadsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isApiWorking, setIsApiWorking] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<LeadWorkflowTab>("all");
+  const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
   const refreshLeads = async () => {
     setIsLoading(true);
@@ -746,8 +846,6 @@ export function LeadsPage() {
         { label: "New leads", value: "...", detail: "Loading from Supabase", href: "/admin/leads" },
       ]
     : metrics;
-  const sourceStats = useMemo(() => buildLeadSourceStats(leads), [leads]);
-
   useEffect(() => {
     setCurrentPage(1);
   }, [priority, query, service, source, stage]);
@@ -770,12 +868,12 @@ export function LeadsPage() {
     const start = (safeCurrentPage - 1) * pageSize;
     return rows.slice(start, start + pageSize);
   }, [pageSize, rows, safeCurrentPage]);
+  const selectedLead = useMemo(
+    () => leads.find((lead) => lead.id === selectedLeadId) ?? null,
+    [leads, selectedLeadId],
+  );
 
   const followUps = useMemo(() => leads.filter((lead) => lead.next_action).slice(0, 4), [leads]);
-  const hotProspects = useMemo(
-    () => [...leads].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 4),
-    [leads],
-  );
   const aiSuggestions = useMemo(() => {
     const missingWebsite = leads.filter((lead) => !lead.company?.website_found).length;
     const lowSeo = leads.filter((lead) => (lead.latestAudit?.seo_score ?? 100) < 70).length;
@@ -799,6 +897,10 @@ export function LeadsPage() {
     const result = await updateLeadStatus(lead.id, nextStatus);
     setActionMessage(result.message);
     if (result.ok) updateLocalStatus(lead.id, nextStatus);
+  };
+
+  const handleQualifyLead = (lead: LeadWithCompanyAndAudit) => {
+    void handleStatusUpdate(lead, "Qualified");
   };
 
   const handleDiscover = async (filters: ScbLeadFinderFilters) => {
@@ -877,19 +979,9 @@ export function LeadsPage() {
       key: "lead",
       header: "Lead / company",
       render: (lead) => (
-        <div>
-          <strong className="block font-medium text-gray-800">{leadCompanyName(lead)}</strong>
-          <span className="mt-0.5 block text-sm text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "No company context"}</span>
-        </div>
-      ),
-    },
-    {
-      key: "contact",
-      header: "Company details",
-      render: (lead) => (
-        <div>
-          <span className="block text-sm text-gray-700">{lead.company?.org_number ?? "No org number"}</span>
-          <span className="mt-0.5 block text-xs text-gray-500">{lead.company?.email ?? lead.company?.phone ?? "No contact"}</span>
+        <div className="min-w-56 py-1">
+          <strong className="block text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</strong>
+          <span className="mt-1 block truncate text-sm text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "No company context"}</span>
         </div>
       ),
     },
@@ -897,7 +989,7 @@ export function LeadsPage() {
       key: "website",
       header: "Website",
       render: (lead) => (
-        <div>
+        <div className="min-w-48">
           {lead.company?.website_url ? (
             <a className="block max-w-52 truncate text-sm font-medium text-[#2E75BD]" href={lead.company.website_url} target="_blank" rel="noreferrer">
               {lead.company.website_url}
@@ -905,40 +997,26 @@ export function LeadsPage() {
           ) : (
             <span className="block text-sm text-gray-500">No website</span>
           )}
-          <span className="mt-0.5 block text-xs text-gray-500">{lead.company?.website_found ? "Website found" : "Website missing"}</span>
         </div>
       ),
     },
-    { key: "source", header: "Source", render: (lead) => leadSourceLabel(lead) },
-    { key: "service", header: "Service", render: (lead) => lead.service_interest ?? "Website opportunity" },
-    { key: "score", header: "Score", render: (lead) => <span className="font-medium text-gray-800">{lead.score ?? 0}/100</span> },
-    { key: "stage", header: "Stage", render: (lead) => <LeadStageBadge stage={mapLeadStage(lead.status)} /> },
+    { key: "status", header: "Status", render: (lead) => <LeadStageBadge stage={mapLeadStage(lead.status)} /> },
+    { key: "score", header: "Score", render: (lead) => <span className="font-semibold text-gray-800">{lead.score ?? 0}/100</span> },
     { key: "priority", header: "Priority", render: (lead) => <PriorityBadge priority={mapLeadPriority(lead.priority)} /> },
-    {
-      key: "audit",
-      header: "Latest audit",
-      render: (lead) => (
-        <div>
-          <span className="block text-sm font-medium text-gray-800">
-            SEO {lead.latestAudit?.seo_score ?? "-"}
-          </span>
-          <span className="mt-0.5 block max-w-64 truncate text-xs text-gray-500">
-            {lead.latestAudit?.audit_summary ?? lead.latestEvent?.message ?? "No audit summary"}
-          </span>
-        </div>
-      ),
-    },
-    { key: "next", header: "Next action", render: (lead) => lead.next_action ?? "Review lead" },
-    { key: "activity", header: "Last activity", render: (lead) => formatShortDate(lead.updated_at) },
-    { key: "owner", header: "Assigned to", render: (lead) => lead.assigned_to ?? "Kevin" },
+    { key: "next", header: "Next action", render: (lead) => <span className="block max-w-64 truncate text-sm text-gray-600">{lead.next_action ?? "Review lead"}</span> },
+    { key: "owner", header: "Owner", render: (lead) => <span className="whitespace-nowrap text-sm text-gray-600">{lead.assigned_to ?? "Kevin"}</span> },
     {
       key: "actions",
       header: "Actions",
       render: (lead) => (
         <div className="flex flex-wrap gap-2">
-          <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD] disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={!isKwstudioApiConfigured || isApiWorking} onClick={() => handleAudit(lead)}>Audit</button>
-          <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD] disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={!isKwstudioApiConfigured || isApiWorking} onClick={() => handleRefreshScore(lead)}>Score</button>
-          <button className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]" type="button" onClick={() => handleStatusUpdate(lead, "Qualified")}>Qualify</button>
+          <button
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
+            type="button"
+            onClick={() => setSelectedLeadId(lead.id)}
+          >
+            Details
+          </button>
         </div>
       ),
     },
@@ -962,32 +1040,38 @@ export function LeadsPage() {
         </div>
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        {sourceStats.map((item) => (
-          <article key={item.source} className="rounded-2xl border border-gray-200 bg-white p-5">
-            <span className="text-sm font-medium text-gray-500">{item.source}</span>
-            <strong className="mt-2 block text-2xl font-bold text-gray-800">{item.count}</strong>
-            <p className="mt-2 text-sm leading-6 text-gray-500">{item.detail}</p>
-          </article>
-        ))}
-      </div>
+      <AdminTabs tabs={leadWorkflowTabs} activeTab={activeTab} onChange={setActiveTab} />
 
-      <div className="mb-6">
-        <ScbLeadFinderPanel
-          onDiscover={handleDiscover}
-          onAuditAll={handleAuditAll}
-          onRecalculateScores={handleRecalculateScores}
-          message={actionMessage}
-          isWorking={isApiWorking}
-        />
-      </div>
+      {activeTab === "all" ? (
+        <>
+          <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Lead workspace</p>
+              <p className="mt-1 text-sm text-gray-500">Filter, qualify and audit individual opportunities.</p>
+            </div>
+            <button
+              className="btn btn-outline"
+              type="button"
+              onClick={() => setIsDiscoveryOpen((current) => !current)}
+            >
+              {isDiscoveryOpen ? "Hide SCB tools" : "Show SCB tools"}
+            </button>
+          </div>
 
-      <div className="mb-6">
-        <LeadPipeline leads={leads} />
-      </div>
+          {isDiscoveryOpen ? (
+            <div className="mb-6">
+              <ScbLeadFinderPanel
+                onDiscover={handleDiscover}
+                onAuditAll={handleAuditAll}
+                onRecalculateScores={handleRecalculateScores}
+                message={actionMessage}
+                isWorking={isApiWorking}
+              />
+            </div>
+          ) : actionMessage ? (
+            <p className="mb-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-600">{actionMessage}</p>
+          ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
           <FilterBar
             search={query}
             onSearchChange={setQuery}
@@ -1002,93 +1086,73 @@ export function LeadsPage() {
           {isLoading ? (
             <EmptyState title="Loading leads" description="Lead records are being loaded from Supabase." />
           ) : (
-            <>
-              <AdminTable columns={leadTableColumns} rows={paginatedRows} getRowKey={(lead) => lead.id} emptyMessage="No leads found for the selected filters." />
-              <LeadsTablePagination
-                currentPage={safeCurrentPage}
-                pageSize={pageSize}
-                totalRows={rows.length}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(nextPageSize) => {
-                  setPageSize(nextPageSize);
-                  setCurrentPage(1);
-                }}
-              />
-            </>
-          )}
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {leadDashboardStates.map((state) => (
-              <article key={state.id} className="rounded-2xl border border-gray-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-gray-800">{state.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-gray-500">{state.detail}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <aside className="grid gap-6">
-          <Panel title="Next follow-ups">
-            <div className="space-y-3">
-              {followUps.map((lead) => (
-                <div key={lead.id} className="rounded-lg border border-gray-100 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h3>
-                    <span className="text-xs font-medium text-gray-500">{formatShortDate(lead.updated_at)}</span>
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-gray-500">{lead.next_action}</p>
-                </div>
-              ))}
-            </div>
-          </Panel>
-          <Panel title="Hot prospects">
-            <div className="space-y-3">
-              {hotProspects.map((lead) => (
-                <div key={lead.id} className="rounded-lg border border-gray-100 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h3>
-                    <span className="text-xs font-medium text-[#2E75BD]">{lead.score ?? 0}/100</span>
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-gray-500">{lead.service_interest ?? "Website opportunity"}</p>
-                </div>
-              ))}
-            </div>
-          </Panel>
-          <InsightList title="AI suggestions" items={aiSuggestions} />
-          <Panel title="SCB import status">
-            <div className="grid gap-3">
-              {leadResult.latestImport ? (
-                <div className="rounded-lg border border-gray-100 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-gray-800">{toTitle(leadResult.latestImport.status)}</h3>
-                    <strong className="text-sm text-gray-900">{leadResult.latestImport.imported_count ?? 0}</strong>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {leadResult.latestImport.created_leads_count ?? 0} leads created, {leadResult.latestImport.websites_found_count ?? 0} websites found.
-                  </p>
-                </div>
+            <div className={selectedLead ? "grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]" : ""}>
+              <div className="min-w-0">
+                <AdminTable columns={leadTableColumns} rows={paginatedRows} getRowKey={(lead) => lead.id} emptyMessage="No leads found for the selected filters." />
+                <LeadsTablePagination
+                  currentPage={safeCurrentPage}
+                  pageSize={pageSize}
+                  totalRows={rows.length}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={(nextPageSize) => {
+                    setPageSize(nextPageSize);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+              {selectedLead ? (
+                <LeadDetailsPanel
+                  lead={selectedLead}
+                  isWorking={isApiWorking}
+                  onClose={() => setSelectedLeadId(null)}
+                  onAudit={handleAudit}
+                  onRefreshScore={handleRefreshScore}
+                  onQualify={handleQualifyLead}
+                />
               ) : null}
-              {scbImportStatus.slice(0, 3).map((item) => (
-                <div key={item.label} className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 px-4 py-3">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-800">{item.label}</h3>
-                    <p className="mt-1 text-xs text-gray-500">{item.detail}</p>
-                  </div>
-                  <strong className="text-sm text-gray-900">{item.value}</strong>
-                </div>
-              ))}
             </div>
-          </Panel>
-          <QuickActions
-            title="Lead actions"
-            actions={[
-              { label: "Generate proposal", href: "/admin/proposal-generator", icon: quickActions[0].icon, description: "Draft from selected lead" },
-              { label: "Open follow-ups", href: "/admin/follow-ups", icon: quickActions[3].icon, description: "Plan next contact" },
-              { label: "Run website audit", href: "/admin/analyzer", icon: quickActions[2].icon, description: "Qualify fit and need" },
-            ]}
-          />
-        </aside>
-      </div>
+          )}
+        </>
+      ) : null}
+
+      {activeTab === "pipeline" ? (
+        <LeadPipeline leads={leads} />
+      ) : null}
+
+      {activeTab === "follow-ups" ? (
+        <div className="grid gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2">
+            {followUps.length > 0 ? (
+              <TaskList
+                items={followUps.map((lead) => ({
+                  id: lead.id,
+                  title: leadCompanyName(lead),
+                  meta: formatShortDate(lead.updated_at),
+                  description: lead.next_action ?? "Review lead",
+                  status: mapDashboardStatus(lead.status),
+                }))}
+              />
+            ) : (
+              <EmptyState title="No follow-ups" description="No loaded leads have a next action yet." />
+            )}
+          </div>
+          <InsightList title="AI suggestions" items={aiSuggestions} />
+        </div>
+      ) : null}
+
+      {activeTab === "proposals" ? (
+        <AdminTable
+          columns={[
+            { key: "proposal", header: "Proposal", render: (proposal: Proposal) => <strong className="text-gray-800">{proposal.title}</strong> },
+            { key: "client", header: "Client", render: (proposal: Proposal) => proposal.client },
+            { key: "value", header: "Value", render: (proposal: Proposal) => proposal.value },
+            { key: "expires", header: "Expires", render: (proposal: Proposal) => proposal.expiry },
+            { key: "status", header: "Status", render: (proposal: Proposal) => <StatusBadge status={proposal.status} /> },
+          ]}
+          rows={proposals}
+          getRowKey={(proposal) => proposal.id}
+        />
+      ) : null}
     </AdminShell>
   );
 }
@@ -1102,12 +1166,12 @@ export function PipelinePage() {
           id: stage,
           title: stage,
           items: pipelineDeals.filter((deal) => deal.stage === stage).map((deal) => (
-            <article key={deal.id} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-800">{deal.company}</h3>
-              <p className="mt-1 text-sm text-gray-500">{deal.service}</p>
-              <div className="mt-4 flex items-center justify-between text-sm">
+            <article key={deal.id} className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+              <h3 className="truncate text-sm font-semibold text-gray-800">{deal.company}</h3>
+              <p className="mt-1 truncate text-sm text-gray-500">{deal.service}</p>
+              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                 <span className="font-semibold text-gray-800">{deal.value}</span>
-                <span className="text-gray-500">{deal.nextAction}</span>
+                <span className="truncate text-gray-500">{deal.nextAction}</span>
               </div>
             </article>
           )),
