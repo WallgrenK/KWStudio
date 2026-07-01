@@ -13,6 +13,11 @@ import { ScoreCard } from "~/components/admin/ScoreCard";
 import { StatusBadge } from "~/components/admin/StatusBadge";
 import { TaskList } from "~/components/admin/TaskList";
 import { Timeline } from "~/components/admin/Timeline";
+import { LeadPreviewPanel } from "~/components/admin/leads/LeadPreviewPanel";
+import { type RecommendedPackageName } from "~/components/admin/leads/LeadRecommendedPackage";
+import { type LeadScoreBreakdownItem } from "~/components/admin/leads/LeadScoreBreakdown";
+import { LeadWorkspaceModal } from "~/components/admin/leads/LeadWorkspaceModal";
+import type { LeadAuditSummary, LeadWorkspaceData, LeadWorkspaceTabId } from "~/components/admin/leads/LeadWorkspaceTypes";
 import {
   aiPinnedTools,
   aiQuickPrompts,
@@ -72,9 +77,12 @@ import {
   auditAllWebsites,
   auditLeadWebsite,
   discoverScbLeads,
+  generateSalesPitch,
+  getLatestSalesPitch,
   isKwstudioApiConfigured,
   recalculateLeadScores,
   refreshLeadScore,
+  type LeadAiInsight,
 } from "~/services/kwstudioApi";
 import {
   getLeads,
@@ -326,13 +334,9 @@ const leadServices: Array<LeadServiceInterest | "All"> = ["All", "New website", 
 const defaultLeadResult: LeadsResult = { leads: [], latestImport: null, source: "unconfigured" };
 const leadsPageSizeOptions = [10, 25, 50];
 type LeadWorkflowTab = "all" | "pipeline" | "follow-ups" | "proposals";
-type ScoreBreakdownItem = {
-  label: string;
-  value: number;
-  detail: string;
-};
 
 type LeadOpportunity = {
+  title: string;
   summary: string;
   recommendedService: string;
   estimatedValue: string;
@@ -496,6 +500,7 @@ function getTopIssues(lead: LeadWithCompanyAndAudit) {
 function getLeadOpportunity(lead: LeadWithCompanyAndAudit): LeadOpportunity {
   if (!lead.company?.website_url || !lead.company.website_found) {
     return {
+      title: "Starter website opportunity",
       summary: "No verified website found. Good fit for a starter website offer.",
       recommendedService: getRecommendedService(lead),
       estimatedValue: getEstimatedValue(lead),
@@ -504,6 +509,13 @@ function getLeadOpportunity(lead: LeadWithCompanyAndAudit): LeadOpportunity {
   }
 
   const seoScore = lead.latestAudit?.seo_score;
+  const title = typeof seoScore !== "number"
+    ? "Audit-first opportunity"
+    : seoScore < 40
+      ? "Excellent redesign opportunity"
+      : seoScore < 70
+        ? "SEO improvement opportunity"
+        : "Care plan opportunity";
   const summary = typeof seoScore !== "number"
     ? "Website found, but no audit is available yet. Run an audit before outreach."
     : seoScore < 40
@@ -513,6 +525,7 @@ function getLeadOpportunity(lead: LeadWithCompanyAndAudit): LeadOpportunity {
         : "Website looks relatively healthy. Best fit is a focused care plan or conversion review.";
 
   return {
+    title,
     summary,
     recommendedService: getRecommendedService(lead),
     estimatedValue: getEstimatedValue(lead),
@@ -520,28 +533,28 @@ function getLeadOpportunity(lead: LeadWithCompanyAndAudit): LeadOpportunity {
   };
 }
 
-function getScoreBreakdown(lead: LeadWithCompanyAndAudit): ScoreBreakdownItem[] {
+function getScoreBreakdown(lead: LeadWithCompanyAndAudit): LeadScoreBreakdownItem[] {
   const audit = lead.latestAudit;
   const hasWebsite = Boolean(lead.company?.website_url && lead.company.website_found);
-  const website = hasWebsite ? 20 : 0;
-  const seo = typeof audit?.seo_score === "number" ? Math.round(Math.min(Math.max(audit.seo_score, 0), 100) / 5) : 0;
+  const website = hasWebsite ? 100 : 15;
+  const seo = typeof audit?.seo_score === "number" ? Math.min(Math.max(audit.seo_score, 0), 100) : hasWebsite ? 35 : 10;
   const technical = audit
     ? [
         audit.has_ssl,
         audit.has_robots_txt,
         audit.has_sitemap,
         typeof audit.status_code === "number" && audit.status_code >= 200 && audit.status_code < 400,
-      ].filter(Boolean).length * 5
-    : hasWebsite ? 5 : 0;
+      ].filter(Boolean).length * 25
+    : hasWebsite ? 35 : 10;
   const conversion = audit
     ? audit.has_title && audit.has_meta_description
-      ? 20
+      ? 90
       : audit.has_title || audit.has_meta_description
-        ? 10
-        : 4
-    : hasWebsite ? 4 : 0;
-  const priorityFit: Record<LeadPriority, number> = { High: 20, Medium: 14, Low: 8 };
-  const scoreFit = Math.round(Math.min(Math.max(lead.score ?? 0, 0), 100) / 5);
+        ? 55
+        : 25
+    : hasWebsite ? 30 : 20;
+  const priorityFit: Record<LeadPriority, number> = { High: 92, Medium: 68, Low: 42 };
+  const scoreFit = Math.min(Math.max(lead.score ?? 0, 0), 100);
   const businessFit = Math.max(scoreFit, priorityFit[mapLeadPriority(lead.priority)]);
 
   return [
@@ -551,6 +564,148 @@ function getScoreBreakdown(lead: LeadWithCompanyAndAudit): ScoreBreakdownItem[] 
     { label: "Conversion", value: conversion, detail: "Title and meta basics" },
     { label: "Business fit", value: businessFit, detail: `${mapLeadPriority(lead.priority)} priority, score ${lead.score ?? 0}` },
   ];
+}
+
+function clampPercent(value: number) {
+  return Math.min(Math.max(Math.round(value), 0), 100);
+}
+
+function getAiConfidence(lead: LeadWithCompanyAndAudit, insight: LeadAiInsight | null) {
+  const baseScore = lead.score ?? 45;
+  const auditBonus = lead.latestAudit ? 8 : 0;
+  const websiteBonus = lead.company?.website_url && lead.company.website_found ? 6 : 0;
+  const insightBonus = insight ? 8 : 0;
+  const score = clampPercent(baseScore + auditBonus + websiteBonus + insightBonus);
+  const label = score >= 90 ? "High confidence" : score >= 70 ? "Medium confidence" : "Low confidence";
+  return { score, label };
+}
+
+function getCloseProbability(lead: LeadWithCompanyAndAudit, confidenceScore: number) {
+  const priorityBoost: Record<LeadPriority, number> = { High: 8, Medium: 0, Low: -8 };
+  const stageBoost = mapLeadStage(lead.status) === "Qualified" ? 7 : mapLeadStage(lead.status) === "Proposal" ? 14 : 0;
+  return clampPercent(confidenceScore - 10 + priorityBoost[mapLeadPriority(lead.priority)] + stageBoost);
+}
+
+function getOpportunityStars(lead: LeadWithCompanyAndAudit) {
+  const score = lead.score ?? 0;
+  if (score >= 85) return 5;
+  if (score >= 70) return 4;
+  if (score >= 50) return 3;
+  if (score >= 30) return 2;
+  return 1;
+}
+
+function getRecommendedPackage(lead: LeadWithCompanyAndAudit, service: string) {
+  const score = lead.score ?? 0;
+  const hasWebsite = Boolean(lead.company?.website_url && lead.company.website_found);
+  const seoScore = lead.latestAudit?.seo_score;
+  const serviceName = service.toLowerCase();
+
+  let packageName: RecommendedPackageName = "Business";
+  if (!hasWebsite || score < 45) packageName = "Starter";
+  if (hasWebsite && score >= 55) packageName = "Business";
+  if ((typeof seoScore === "number" && seoScore < 45) || score >= 75 || serviceName.includes("redesign")) packageName = "Growth";
+  if (score >= 90 && mapLeadPriority(lead.priority) === "High") packageName = "Enterprise";
+
+  const reasonByPackage: Record<RecommendedPackageName, string> = {
+    Starter: "Best fit when the business needs a clear website foundation before heavier growth work.",
+    Business: "Good fit for improving trust, structure and local conversion without overbuilding the scope.",
+    Growth: "Best fit when the website has visible SEO, technical or positioning gaps that can become a stronger sales angle.",
+    Enterprise: "Best fit for a high-priority opportunity where strategy, redesign and ongoing optimization should be packaged together.",
+  };
+
+  return {
+    packageName,
+    reason: reasonByPackage[packageName],
+  };
+}
+
+function getIssueTooltips(issues: string[]) {
+  const tooltips: Record<string, string> = {
+    "No verified website": "No confident website URL is connected to this lead yet.",
+    "Needs manual business research": "Review the company manually before outreach so the message stays relevant.",
+    "Starter offer opportunity": "Lead with a simple credibility-site package instead of a complex pitch.",
+    "Website audit pending": "Run an audit before relying on technical or SEO claims.",
+    "Missing meta description": "Search results may lack a clear snippet and selling point.",
+    "Missing title": "The page may not communicate its service clearly to users or search engines.",
+    "Missing robots.txt": "Basic crawl guidance is missing or could not be verified.",
+    "Missing sitemap.xml": "Search engines may have less help discovering important pages.",
+    "Weak SEO foundation": "The audit indicates low SEO quality and a strong improvement angle.",
+    "Low SEO score": "There are visible SEO opportunities worth using in outreach.",
+    "Technical website improvements needed": "SSL, response status or crawl basics need attention.",
+    "Low lead score": "The lead needs more qualification before heavier sales effort.",
+    "Needs manual review": "No major automated issue stood out, so review the business context manually.",
+  };
+
+  return issues.map((issue) => ({
+    label: issue,
+    tooltip: tooltips[issue] ?? "Review this point before outreach.",
+  }));
+}
+
+function getFallbackEmail(lead: LeadWithCompanyAndAudit, opportunity: LeadOpportunity) {
+  const company = leadCompanyName(lead);
+  return {
+    subject: `Kort fråga om ${company}`,
+    body: [
+      `Hej ${company},`,
+      "",
+      `Jag kikade kort på er digitala närvaro och tror att ${opportunity.recommendedService.toLowerCase()} skulle kunna göra det enklare för kunder att förstå, lita på och kontakta er.`,
+      "",
+      "Vill du att jag skickar över några konkreta förbättringsförslag?",
+    ].join("\n"),
+  };
+}
+
+function readRawValue(raw: unknown, keys: string[]) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+  }
+
+  return null;
+}
+
+function formatBoolean(value: boolean | null) {
+  if (value === null) return "-";
+  return value ? "Yes" : "No";
+}
+
+function buildAuditSummary(lead: LeadWithCompanyAndAudit, formatDate: (value: string | null) => string): LeadAuditSummary | null {
+  const audit = lead.latestAudit;
+  if (!audit) return null;
+
+  return {
+    seoScore: audit.seo_score,
+    performanceScore: audit.performance_score,
+    accessibilityScore: audit.accessibility_score,
+    statusCode: audit.status_code,
+    hasSsl: audit.has_ssl,
+    hasTitle: audit.has_title,
+    hasMetaDescription: audit.has_meta_description,
+    hasRobotsTxt: audit.has_robots_txt,
+    hasSitemap: audit.has_sitemap,
+    summary: audit.audit_summary,
+    createdAt: formatDate(audit.created_at),
+    rawFields: [
+      { label: "Website URL", value: audit.website_url ?? "-" },
+      { label: "Status code", value: audit.status_code ? String(audit.status_code) : "-" },
+      { label: "SSL", value: formatBoolean(audit.has_ssl) },
+      { label: "Title", value: formatBoolean(audit.has_title) },
+      { label: "Meta description", value: formatBoolean(audit.has_meta_description) },
+      { label: "Robots", value: formatBoolean(audit.has_robots_txt) },
+      { label: "Sitemap", value: formatBoolean(audit.has_sitemap) },
+      { label: "SEO", value: audit.seo_score !== null ? `${audit.seo_score}/100` : "-" },
+      { label: "Performance", value: audit.performance_score !== null ? `${audit.performance_score}/100` : "-" },
+      { label: "Accessibility", value: audit.accessibility_score !== null ? `${audit.accessibility_score}/100` : "-" },
+      { label: "Best practices", value: audit.best_practices_score !== null ? `${audit.best_practices_score}/100` : "-" },
+      { label: "Audit created", value: formatDate(audit.created_at) },
+    ],
+  };
 }
 
 function hasScbNarrowingFilters(filters: ScbLeadFinderFilters) {
@@ -611,25 +766,6 @@ function WebsiteBadge({ lead }: { lead: LeadWithCompanyAndAudit }) {
     <a className="block max-w-52 truncate text-sm font-medium text-[#2E75BD]" href={lead.company.website_url} target="_blank" rel="noreferrer">
       {lead.company.website_url}
     </a>
-  );
-}
-
-function ScoreBreakdown({ items }: { items: ScoreBreakdownItem[] }) {
-  return (
-    <div className="grid gap-3">
-      {items.map((item) => (
-        <div key={item.label}>
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-gray-700">{item.label}</span>
-            <span className="text-xs font-semibold text-gray-500">{item.value}/20</span>
-          </div>
-          <div className="h-2 rounded-full bg-gray-100">
-            <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${Math.min(item.value * 5, 100)}%` }} />
-          </div>
-          <p className="mt-1 text-xs text-gray-500">{item.detail}</p>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -861,154 +997,232 @@ function LeadsTablePagination({
   );
 }
 
-function LeadDetailItem({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</dt>
-      <dd className="mt-1 text-sm leading-6 text-gray-700">{children}</dd>
-    </div>
-  );
-}
-
 function LeadDetailsPanel({
   lead,
   isWorking,
   onClose,
   onAudit,
-  onRefreshScore,
   onQualify,
 }: {
   lead: LeadWithCompanyAndAudit;
   isWorking: boolean;
   onClose: () => void;
   onAudit: (lead: LeadWithCompanyAndAudit) => void;
-  onRefreshScore: (lead: LeadWithCompanyAndAudit) => void;
   onQualify: (lead: LeadWithCompanyAndAudit) => void;
 }) {
   const websiteUrl = lead.company?.website_url;
   const opportunity = getLeadOpportunity(lead);
   const scoreBreakdown = getScoreBreakdown(lead);
   const audit = lead.latestAudit;
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<LeadWorkspaceTabId>("overview");
+  const [aiInsightCache, setAiInsightCache] = useState<Record<string, LeadAiInsight | null>>({});
+  const [aiInsight, setAiInsight] = useState<LeadAiInsight | null>(null);
+  const [isLoadingAiInsight, setIsLoadingAiInsight] = useState(false);
+  const [isGeneratingAiInsight, setIsGeneratingAiInsight] = useState(false);
+  const [aiInsightError, setAiInsightError] = useState<string | null>(null);
+  const [copiedMessage, setCopiedMessage] = useState<string | null>(null);
+
+  const loadLatestAiInsight = async (leadId: string, force = false, shouldApply: () => boolean = () => true) => {
+    setAiInsight(null);
+    setAiInsightError(null);
+    setCopiedMessage(null);
+
+    if (!force && Object.prototype.hasOwnProperty.call(aiInsightCache, leadId)) {
+      setAiInsight(aiInsightCache[leadId] ?? null);
+      setIsLoadingAiInsight(false);
+      return;
+    }
+
+    setIsLoadingAiInsight(true);
+
+    try {
+      const result = await getLatestSalesPitch(leadId);
+      if (!shouldApply()) return;
+
+      if (result.ok) {
+        const nextInsight = result.data?.insight ?? null;
+        setAiInsight(nextInsight);
+        setAiInsightCache((current) => ({ ...current, [leadId]: nextInsight }));
+        return;
+      }
+
+      if (result.status === 404 || result.status === 501) {
+        setAiInsight(null);
+        setAiInsightCache((current) => ({ ...current, [leadId]: null }));
+        return;
+      }
+
+      setAiInsightError(result.error ?? "Could not load saved AI insight.");
+    } finally {
+      if (shouldApply()) setIsLoadingAiInsight(false);
+    }
+  };
+
+  useEffect(() => {
+    let shouldApply = true;
+    const leadId = lead.id;
+
+    void loadLatestAiInsight(leadId, false, () => shouldApply);
+
+    return () => {
+      shouldApply = false;
+    };
+  }, [lead.id]);
+
+  useEffect(() => {
+    if (!copiedMessage) return;
+
+    const timeout = window.setTimeout(() => setCopiedMessage(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [copiedMessage]);
+
+  const handleGenerateAiInsight = async () => {
+    setIsGeneratingAiInsight(true);
+    setAiInsightError(null);
+
+    try {
+      const result = await generateSalesPitch(lead.id);
+      const generatedInsight = result.data?.insight;
+
+      if (result.ok && generatedInsight) {
+        setAiInsight(generatedInsight);
+        setAiInsightCache((current) => ({ ...current, [lead.id]: generatedInsight }));
+      } else {
+        setAiInsightError(result.error ?? "Try again.");
+      }
+    } finally {
+      setIsGeneratingAiInsight(false);
+    }
+  };
+
+  const copyToClipboard = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedMessage("Copied!");
+    } catch {
+      setCopiedMessage("Copy failed");
+    }
+  };
+
+  const fallbackEmail = getFallbackEmail(lead, opportunity);
+  const emailSubject = aiInsight?.email_subject ?? fallbackEmail.subject;
+  const emailBody = aiInsight?.email_body ?? fallbackEmail.body;
+  const summary = aiInsight?.summary ?? opportunity.summary;
+  const salesAngle = aiInsight?.pitch ?? opportunity.summary;
+  const recommendedService = aiInsight?.recommended_service ?? opportunity.recommendedService;
+  const confidence = getAiConfidence(lead, aiInsight);
+  const closeProbability = getCloseProbability(lead, confidence.score);
+  const recommendedPackage = getRecommendedPackage(lead, recommendedService);
+  const location = lead.company?.city ?? lead.company?.municipality ?? lead.company?.county ?? "No location";
+  const legalForm = readRawValue(lead.company?.raw_data, ["legal_form", "legalForm", "legalform", "juridisk_form", "company_form"]);
+  const technicalDetails = [
+    { label: "Company", value: leadCompanyName(lead) },
+    { label: "Website", value: websiteUrl ?? "No verified website", href: websiteUrl ?? undefined },
+    { label: "Contact", value: lead.company?.email ?? lead.company?.phone ?? "No contact" },
+    { label: "Industry", value: lead.company?.industry_label ?? "-" },
+    { label: "Municipality", value: lead.company?.municipality ?? lead.company?.city ?? "-" },
+    { label: "Source", value: leadSourceLabel(lead) },
+    { label: "Created", value: formatShortDate(lead.created_at) },
+    { label: "Audit date", value: audit ? formatShortDate(audit.created_at) : "No audit yet" },
+  ];
+  const rawDetails = [
+    { label: "Company", value: leadCompanyName(lead) },
+    { label: "Org number", value: lead.company?.org_number ?? "-" },
+    { label: "Legal form", value: legalForm ?? "-" },
+    { label: "Website", value: websiteUrl ?? "No verified website", href: websiteUrl ?? undefined },
+    { label: "Website confidence", value: lead.company?.website_confidence ?? "-" },
+    { label: "Email", value: lead.company?.email ?? "-" },
+    { label: "Phone", value: lead.company?.phone ?? "-" },
+    { label: "Industry", value: lead.company?.industry_label ?? "-" },
+    { label: "Industry code", value: lead.company?.industry_code ?? "-" },
+    { label: "Municipality", value: lead.company?.municipality ?? "-" },
+    { label: "County", value: lead.company?.county ?? "-" },
+    { label: "Source", value: leadSourceLabel(lead) },
+    { label: "Lead source raw", value: lead.source ?? "-" },
+    { label: "Company source", value: lead.company?.source ?? "-" },
+    { label: "Service", value: lead.service_interest ?? recommendedService },
+    { label: "Owner", value: lead.assigned_to ?? "Kevin" },
+    { label: "Lead created", value: formatShortDate(lead.created_at) },
+    { label: "Lead updated", value: formatShortDate(lead.updated_at) },
+    { label: "Company created", value: formatShortDate(lead.company?.created_at ?? null) },
+    { label: "Company updated", value: formatShortDate(lead.company?.updated_at ?? null) },
+  ];
+  const badges = (
+    <>
+      <LeadStageBadge stage={mapLeadStage(lead.status)} />
+      <ScoreBadge score={lead.score} />
+      <PriorityBadge priority={mapLeadPriority(lead.priority)} />
+    </>
+  );
+  const workspaceData: LeadWorkspaceData = {
+    companyName: leadCompanyName(lead),
+    location,
+    status: mapLeadStage(lead.status),
+    priority: mapLeadPriority(lead.priority),
+    score: lead.score ?? 0,
+    badges,
+    websiteUrl: websiteUrl ?? null,
+    summary,
+    opportunityTitle: opportunity.title,
+    recommendedService,
+    estimatedValue: opportunity.estimatedValue,
+    nextAction: lead.next_action ?? `Contact with ${recommendedService.toLowerCase()} angle`,
+    salesAngle,
+    emailSubject,
+    emailBody,
+    aiInsightCreatedAt: aiInsight ? formatShortDate(aiInsight.created_at) : null,
+    packageName: recommendedPackage.packageName,
+    packageReason: recommendedPackage.reason,
+    confidence,
+    closeProbability,
+    stars: getOpportunityStars(lead),
+    scoreBreakdown,
+    topIssues: getIssueTooltips(opportunity.topIssues),
+    technicalDetails,
+    rawDetails,
+    audit: buildAuditSummary(lead, formatShortDate),
+    isLoadingAiInsight,
+    isGeneratingAiInsight,
+    aiInsightError,
+    copiedMessage,
+    hasInsight: Boolean(aiInsight),
+    canGenerate: isKwstudioApiConfigured,
+  };
+  const workspaceActions = {
+    onCopySubject: () => {
+      void copyToClipboard(emailSubject);
+    },
+    onCopyEmail: () => {
+      void copyToClipboard(emailBody);
+    },
+    onGenerate: () => {
+      void handleGenerateAiInsight();
+    },
+    onRefresh: () => {
+      void loadLatestAiInsight(lead.id, true);
+    },
+    onAudit: () => onAudit(lead),
+    onQualify: () => onQualify(lead),
+  };
 
   return (
-    <aside className="rounded-2xl border border-gray-200 bg-white p-5 xl:sticky xl:top-6">
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Lead details</p>
-          <h2 className="mt-1 truncate text-lg font-semibold text-gray-800">{leadCompanyName(lead)}</h2>
-          <p className="mt-1 text-sm text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "No company context"}</p>
-        </div>
-        <button
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
-          type="button"
-          onClick={onClose}
-        >
-          Close
-        </button>
-      </div>
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        <LeadStageBadge stage={mapLeadStage(lead.status)} />
-        <ScoreBadge score={lead.score} />
-        <PriorityBadge priority={mapLeadPriority(lead.priority)} />
-      </div>
-
-      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#2E75BD]">Opportunity summary</p>
-        <p className="mt-2 text-sm leading-6 text-gray-700">{opportunity.summary}</p>
-      </div>
-
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-        <div className="rounded-xl border border-gray-100 p-4">
-          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Recommended service</span>
-          <strong className="mt-1 block text-sm text-gray-800">{opportunity.recommendedService}</strong>
-        </div>
-        <div className="rounded-xl border border-gray-100 p-4">
-          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Estimated value</span>
-          <strong className="mt-1 block text-sm text-gray-800">{opportunity.estimatedValue}</strong>
-        </div>
-      </div>
-
-      <div className="mb-5">
-        <h3 className="mb-3 text-sm font-semibold text-gray-800">Score breakdown</h3>
-        <ScoreBreakdown items={scoreBreakdown} />
-      </div>
-
-      <div className="mb-5">
-        <h3 className="mb-3 text-sm font-semibold text-gray-800">Top issues</h3>
-        <div className="flex flex-wrap gap-2">
-          {opportunity.topIssues.map((issue) => (
-            <span key={issue} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">{issue}</span>
-          ))}
-        </div>
-      </div>
-
-      <dl className="mb-5 grid gap-4">
-        <LeadDetailItem label="Company name">{leadCompanyName(lead)}</LeadDetailItem>
-        <LeadDetailItem label="Location">{lead.company?.city ?? lead.company?.municipality ?? lead.company?.county ?? "No location"}</LeadDetailItem>
-        <LeadDetailItem label="Website">
-          {websiteUrl ? (
-            <a className="break-all font-medium text-[#2E75BD]" href={websiteUrl} target="_blank" rel="noreferrer">
-              {websiteUrl}
-            </a>
-          ) : (
-            "No verified website found"
-          )}
-        </LeadDetailItem>
-        <LeadDetailItem label="Contact info">{lead.company?.email ?? lead.company?.phone ?? "No contact info"}</LeadDetailItem>
-        <LeadDetailItem label="Source / service">{leadSourceLabel(lead)} - {lead.service_interest ?? opportunity.recommendedService}</LeadDetailItem>
-        <LeadDetailItem label="Suggested next action">{lead.next_action ?? `Contact with ${opportunity.recommendedService.toLowerCase()} angle`}</LeadDetailItem>
-        <LeadDetailItem label="Notes">{lead.notes ?? "Needs manual review before outreach."}</LeadDetailItem>
-      </dl>
-
-      <div className="mb-5 rounded-xl border border-gray-100 p-4">
-        <h3 className="text-sm font-semibold text-gray-800">Latest audit</h3>
-        {audit ? (
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            <div><dt className="text-xs text-gray-400">SEO</dt><dd className="font-medium text-gray-800">{audit.seo_score ?? "-"}/100</dd></div>
-            <div><dt className="text-xs text-gray-400">Status</dt><dd className="font-medium text-gray-800">{audit.status_code ?? "-"}</dd></div>
-            <div><dt className="text-xs text-gray-400">SSL</dt><dd className="font-medium text-gray-800">{audit.has_ssl ? "Yes" : "No"}</dd></div>
-            <div><dt className="text-xs text-gray-400">Title/meta</dt><dd className="font-medium text-gray-800">{audit.has_title ? "Title" : "No title"} / {audit.has_meta_description ? "Meta" : "No meta"}</dd></div>
-            <div><dt className="text-xs text-gray-400">Robots</dt><dd className="font-medium text-gray-800">{audit.has_robots_txt ? "Found" : "Missing"}</dd></div>
-            <div><dt className="text-xs text-gray-400">Sitemap</dt><dd className="font-medium text-gray-800">{audit.has_sitemap ? "Found" : "Missing"}</dd></div>
-            <div className="col-span-2"><dt className="text-xs text-gray-400">Summary</dt><dd className="mt-1 text-gray-600">{audit.audit_summary ?? "No audit summary"}</dd></div>
-          </dl>
-        ) : (
-          <div className="mt-3">
-            <p className="text-sm text-gray-500">{websiteUrl ? "Audit pending" : "No audit yet"}</p>
-            {websiteUrl ? (
-              <button className="mt-3 btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking} onClick={() => onAudit(lead)}>
-                Run audit
-              </button>
-            ) : null}
-          </div>
-        )}
-      </div>
-
-      <div className="grid gap-2">
-        <button className="btn btn-primary" type="button" onClick={() => onQualify(lead)}>
-          Qualify lead
-        </button>
-        <button className="btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking} onClick={() => onRefreshScore(lead)}>
-          Recalculate score
-        </button>
-        <button className="btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking || !websiteUrl} onClick={() => onAudit(lead)}>
-          Audit website
-        </button>
-        {websiteUrl ? (
-          <a className="btn btn-outline text-center" href={websiteUrl} target="_blank" rel="noreferrer">
-            Open website
-          </a>
-        ) : (
-          <button className="btn btn-outline" type="button" disabled title="No verified website found">
-            Open website
-          </button>
-        )}
-        <button className="btn btn-outline" type="button" disabled title="Coming soon">
-          Mark contacted - Coming soon
-        </button>
-      </div>
-    </aside>
+    <>
+      <LeadPreviewPanel
+        data={workspaceData}
+        actions={workspaceActions}
+        onClose={onClose}
+        onOpenWorkspace={() => setWorkspaceOpen(true)}
+      />
+      <LeadWorkspaceModal
+        isOpen={workspaceOpen}
+        activeTab={activeWorkspaceTab}
+        data={workspaceData}
+        actions={workspaceActions}
+        onTabChange={setActiveWorkspaceTab}
+        onClose={() => setWorkspaceOpen(false)}
+      />
+    </>
   );
 }
 
@@ -1332,12 +1546,11 @@ export function LeadsPage() {
               {selectedLead ? (
                 <LeadDetailsPanel
                   lead={selectedLead}
-                  isWorking={isApiWorking}
-                  onClose={() => setSelectedLeadId(null)}
-                  onAudit={handleAudit}
-                  onRefreshScore={handleRefreshScore}
-                  onQualify={handleQualifyLead}
-                />
+                isWorking={isApiWorking}
+                onClose={() => setSelectedLeadId(null)}
+                onAudit={handleAudit}
+                onQualify={handleQualifyLead}
+              />
               ) : null}
             </div>
           )}

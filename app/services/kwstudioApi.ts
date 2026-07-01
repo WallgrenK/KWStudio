@@ -5,6 +5,18 @@ type ApiResult<T> = {
   ok: boolean;
   data?: T;
   error?: string;
+  status?: number;
+};
+
+export type LeadAiInsight = {
+  id: string;
+  lead_id: string;
+  summary: string;
+  recommended_service: string;
+  pitch: string;
+  email_subject: string;
+  email_body: string;
+  created_at: string;
 };
 
 const apiUrl = import.meta.env.VITE_KWSTUDIO_API_URL;
@@ -25,7 +37,11 @@ function authRequired<T>(): ApiResult<T> {
   };
 }
 
-async function requestApi<T>(path: string, body: unknown): Promise<ApiResult<T>> {
+async function requestApi<T>(
+  path: string,
+  body?: unknown,
+  method: "GET" | "POST" = "POST",
+): Promise<ApiResult<T>> {
   if (!isKwstudioApiConfigured) return apiNotConfigured<T>();
 
   try {
@@ -36,12 +52,12 @@ async function requestApi<T>(path: string, body: unknown): Promise<ApiResult<T>>
     if (!session?.access_token) return authRequired<T>();
 
     const response = await fetch(`${apiUrl.replace(/\/$/, "")}${path}`, {
-      method: "POST",
+      method,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify(body),
+      ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
     });
 
     const data = await response.json().catch(() => null) as T | { error?: string } | null;
@@ -49,13 +65,14 @@ async function requestApi<T>(path: string, body: unknown): Promise<ApiResult<T>>
     if (!response.ok) {
       return {
         ok: false,
+        status: response.status,
         error: data && typeof data === "object" && "error" in data && data.error
           ? data.error
           : `KWStudio API request failed with ${response.status}.`,
       };
     }
 
-    return { ok: true, data: data as T };
+    return { ok: true, data: data as T, status: response.status };
   } catch (error) {
     return {
       ok: false,
@@ -82,4 +99,12 @@ export async function recalculateLeadScores() {
 
 export async function refreshLeadScore(leadId: string) {
   return requestApi<{ leadId: string; score: number }>("/score", { leadId });
+}
+
+export async function getLatestSalesPitch(leadId: string) {
+  return requestApi<{ insight: LeadAiInsight | null }>(`/leads/${leadId}/sales-pitch`, undefined, "GET");
+}
+
+export async function generateSalesPitch(leadId: string) {
+  return requestApi<{ ok: boolean; insight: LeadAiInsight }>(`/leads/${leadId}/sales-pitch`, {});
 }

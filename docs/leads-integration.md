@@ -19,9 +19,11 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=server_only_service_role_key
 SCB_PFX_BASE64=base64_encoded_client_certificate
 SCB_PFX_PASSWORD=certificate_password
+OPENAI_API_KEY=server_only_openai_key
+OPENAI_MODEL=gpt-4.1-mini
 ```
 
-The service role key and SCB credentials belong only on the Render server.
+The service role key, SCB credentials, and OpenAI API key belong only on the Render server.
 
 ## Login Flow
 
@@ -52,14 +54,24 @@ Supabase Auth JWT -> Render API -> Supabase -> KWStudio Admin
    - `website_audits`
    - `lead_events`
    - `scb_import_runs`
+   - `lead_ai_insights`
 
 Admin leads no longer fall back to demo data. Empty Supabase tables show a real empty state.
 
-## AI-Style Lead Workspace
+## AI Lead Workspace
 
-The Leads page includes deterministic AI-style opportunity summaries in the lead details panel. This is not a real AI integration yet. The frontend derives the summary from existing Supabase data until a separate AI analysis service is built.
+The Leads page includes a compact preview panel and a full lead workspace modal. The frontend first tries to read the latest saved AI sales pitch from `lead_ai_insights` through the Render API. It does not call OpenAI directly and it does not generate a new pitch automatically when a lead is opened.
 
-The current rules use:
+Saved AI pitch flow:
+
+1. When a lead is selected, the frontend calls `GET /leads/:id/sales-pitch` with the current Supabase Bearer token.
+2. If a saved insight exists, the UI shows `summary`, `recommended_service`, `pitch`, `email_subject`, `email_body`, and `created_at`.
+3. If the endpoint returns no insight, `404`, or `501`, the UI shows an empty state and a `Generate AI Pitch` button.
+4. The frontend caches loaded insights per `leadId` in state to avoid repeated API reads when switching between leads.
+5. `Generate AI Pitch` and `Regenerate` are the only actions that call `POST /leads/:id/sales-pitch`.
+6. A successful POST stores the returned insight in UI state immediately and updates the per-lead cache.
+
+The workspace still computes deterministic fallback context for preview, scoring, package recommendation, and empty states from:
 
 - `companies`: name, location, contact details, detected website, and industry context.
 - `leads`: status, priority, score, estimated value, source, service interest, notes, owner, and next action.
@@ -72,7 +84,33 @@ Fallback examples:
 - Leads with moderate SEO are treated as audit or refresh opportunities.
 - Leads with stronger audit scores are treated as care plan or conversion review opportunities.
 
-The details panel also shows deterministic score breakdowns for Website, SEO, Technical, Conversion, and Business fit. Missing audit data is shown as pending instead of falling back to demo content.
+The workspace also shows deterministic score breakdowns for Website, SEO, Technical, Conversion, and Business fit. Missing audit data is shown as pending instead of falling back to demo content.
+
+## AI Sales Pitch Endpoint
+
+Render exposes `POST /leads/:id/sales-pitch` behind `requireSupabaseAuth`. The endpoint:
+
+1. Reads the lead, company, and latest website audit with the server-side Supabase service role key.
+2. Sends that context to OpenAI using `OPENAI_API_KEY` from the Render environment.
+3. Requests structured JSON with `summary`, `recommended_service`, `pitch`, `email_subject`, and `email_body`.
+4. Saves the generated result in `lead_ai_insights`.
+5. Creates a `lead_events` record with type `sales_pitch_generated`.
+
+The prompt is Swedish, soft, professional, and must not pretend KWStudio has already contacted the customer. No OpenAI keys or prompts are stored in frontend environment variables.
+
+Render also exposes `GET /leads/:id/sales-pitch` behind the same Supabase auth middleware. It returns the latest saved `lead_ai_insights` row for the lead and never generates new AI.
+
+The GET query reads one row:
+
+```sql
+select id, lead_id, summary, recommended_service, pitch, email_subject, email_body, raw_response, created_at
+from lead_ai_insights
+where lead_id = :id
+order by created_at desc
+limit 1;
+```
+
+If no insight exists, the API returns `200` with `{ "ok": true, "insight": null }`. The frontend should show the empty AI state and wait for the user to click Generate.
 
 ## SCB Lead Finder Mapping
 
