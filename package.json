@@ -9,16 +9,32 @@
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
+<<<<<<< HEAD
+=======
+    "@radix-ui/react-checkbox": "^1.3.6",
+    "@radix-ui/react-label": "^2.1.11",
+    "@radix-ui/react-slot": "^1.3.0",
+>>>>>>> 437883a (SCB API update)
     "@react-router/node": "8.0.0",
     "@react-router/serve": "8.0.0",
     "@supabase/supabase-js": "^2.110.0",
     "apexcharts": "^5.15.2",
+<<<<<<< HEAD
+=======
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+>>>>>>> 437883a (SCB API update)
     "isbot": "^5.1.36",
     "lucide-react": "^1.22.0",
     "react": "^19.2.7",
     "react-apexcharts": "^2.1.1",
     "react-dom": "^19.2.7",
+<<<<<<< HEAD
     "react-router": "8.0.0"
+=======
+    "react-router": "8.0.0",
+    "tailwind-merge": "^3.6.0"
+>>>>>>> 437883a (SCB API update)
   },
   "devDependencies": {
     "@react-router/dev": "8.0.0",

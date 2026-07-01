@@ -592,6 +592,7 @@ export const leadSourceStats: LeadSourceStat[] = [
 ];
 
 export const scbLeadFinderFilters: Record<string, ScbLeadFinderOption[]> = {
+<<<<<<< HEAD
   region: [
     { id: "region-stockholm", label: "Stockholm county", value: "01" },
     { id: "region-uppsala", label: "Uppsala county", value: "03" },
@@ -631,6 +632,78 @@ export const scbLeadFinderFilters: Record<string, ScbLeadFinderOption[]> = {
     { id: "advertising-ok", label: "Advertising allowed", value: "allowed" },
     { id: "advertising-blocked", label: "No advertising", value: "blocked" },
     { id: "advertising-any", label: "Any status", value: "any" },
+=======
+  county: [
+    { id: "county-any", label: "Any county", value: "" },
+    { id: "county-stockholm", label: "Stockholm county", value: "stockholm" },
+    { id: "county-uppsala", label: "Uppsala county", value: "uppsala" },
+    { id: "county-sodermanland", label: "Sodermanland county", value: "sodermanland" },
+    { id: "county-ostergotland", label: "Ostergotland county", value: "ostergotland" },
+    { id: "county-skane", label: "Skane county", value: "skane" },
+    { id: "county-vastra-gotaland", label: "Vastra Gotaland county", value: "vastra_gotaland" },
+    { id: "county-vastmanland", label: "Vastmanland county", value: "vastmanland" },
+    { id: "county-vasterbotten", label: "Vasterbotten county", value: "vasterbotten" },
+  ],
+  municipality: [
+    { id: "municipality-any", label: "Any municipality", value: "" },
+    { id: "municipality-solna", label: "Solna", value: "solna" },
+    { id: "municipality-stockholm", label: "Stockholm", value: "stockholm" },
+    { id: "municipality-ekero", label: "Ekero", value: "ekero" },
+    { id: "municipality-vallentuna", label: "Vallentuna", value: "vallentuna" },
+    { id: "municipality-osteraker", label: "Osteraker", value: "osteraker" },
+    { id: "municipality-uppsala", label: "Uppsala", value: "uppsala" },
+    { id: "municipality-goteborg", label: "Goteborg", value: "goteborg" },
+    { id: "municipality-malmo", label: "Malmo", value: "malmo" },
+    { id: "municipality-lund", label: "Lund", value: "lund" },
+    { id: "municipality-helsingborg", label: "Helsingborg", value: "helsingborg" },
+    { id: "municipality-vasteras", label: "Vasteras", value: "vasteras" },
+    { id: "municipality-orebro", label: "Orebro", value: "orebro" },
+    { id: "municipality-linkoping", label: "Linkoping", value: "linkoping" },
+    { id: "municipality-norrkoping", label: "Norrkoping", value: "norrkoping" },
+    { id: "municipality-jonkoping", label: "Jonkoping", value: "jonkoping" },
+    { id: "municipality-umea", label: "Umea", value: "umea" },
+  ],
+  industry: [
+    { id: "industry-any", label: "Any industry", value: "" },
+    { id: "industry-retail", label: "Retail and ecommerce", value: "retail_ecommerce" },
+    { id: "industry-restaurants", label: "Restaurants and cafes", value: "restaurants_cafes" },
+    { id: "industry-construction", label: "Construction", value: "construction" },
+    { id: "industry-real-estate", label: "Real estate", value: "real_estate" },
+    { id: "industry-consulting", label: "Consulting", value: "consulting" },
+    { id: "industry-it", label: "IT and software", value: "it_software" },
+    { id: "industry-health", label: "Health and wellness", value: "health_wellness" },
+    { id: "industry-beauty", label: "Beauty and personal services", value: "beauty_personal_services" },
+    { id: "industry-manufacturing", label: "Manufacturing", value: "manufacturing" },
+  ],
+  companyStatus: [
+    { id: "status-active", label: "Active companies", value: "active" },
+  ],
+  taxStatus: [
+    { id: "tax-any", label: "Any tax status", value: "" },
+    { id: "tax-f", label: "Approved for F-tax", value: "f_tax_approved" },
+    { id: "tax-vat", label: "Registered for VAT", value: "vat_registered" },
+  ],
+  employeeRange: [
+    { id: "employees-any", label: "Any employee count", value: "" },
+    { id: "employees-0", label: "0 employees", value: "0" },
+    { id: "employees-1-4", label: "1-4 employees", value: "1_4" },
+    { id: "employees-5-9", label: "5-9 employees", value: "5_9" },
+    { id: "employees-10-19", label: "10-19 employees", value: "10_19" },
+    { id: "employees-20-49", label: "20-49 employees", value: "20_49" },
+    { id: "employees-50-99", label: "50-99 employees", value: "50_99" },
+  ],
+  registrationPeriod: [
+    { id: "registered-any", label: "Any registration date", value: "" },
+    { id: "registered-30", label: "Last 30 days", value: "last_30_days" },
+    { id: "registered-90", label: "Last 90 days", value: "last_90_days" },
+    { id: "registered-180", label: "Last 180 days", value: "last_180_days" },
+    { id: "registered-365", label: "Last 365 days", value: "last_365_days" },
+  ],
+  adStatus: [
+    { id: "advertising-any", label: "Any advertising status", value: "" },
+    { id: "advertising-ok", label: "Accepts advertising", value: "accepts_advertising" },
+    { id: "advertising-blocked", label: "Advertising blocked", value: "advertising_blocked" },
+>>>>>>> 437883a (SCB API update)
   ],
 };
 

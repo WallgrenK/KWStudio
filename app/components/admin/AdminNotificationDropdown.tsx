@@ -1,6 +1,10 @@
+<<<<<<< HEAD
 import { useState } from "react";
 import { Link } from "react-router";
 import { AdminDropdown } from "~/components/admin/AdminDropdown";
+=======
+import { Link } from "react-router";
+>>>>>>> 437883a (SCB API update)
 import { AdminDropdownItem } from "~/components/admin/AdminDropdownItem";
 
 const notifications = [
@@ -31,6 +35,7 @@ const notifications = [
 ];
 
 export function AdminNotificationDropdown() {
+<<<<<<< HEAD
   const [isOpen, setIsOpen] = useState(false);
   const [notifying, setNotifying] = useState(true);
 
@@ -59,6 +64,12 @@ export function AdminNotificationDropdown() {
             !notifying ? "hidden" : "flex"
           }`}
         >
+=======
+  return (
+    <details className="admin-native-dropdown relative">
+      <summary className="relative flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700">
+        <span className="absolute top-0.5 right-0 z-10 h-2 w-2 rounded-full bg-orange-400">
+>>>>>>> 437883a (SCB API update)
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
         </span>
         <svg className="fill-current" width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -69,6 +80,7 @@ export function AdminNotificationDropdown() {
             fill="currentColor"
           />
         </svg>
+<<<<<<< HEAD
       </button>
       <AdminDropdown
         isOpen={isOpen}
@@ -87,14 +99,25 @@ export function AdminNotificationDropdown() {
               />
             </svg>
           </button>
+=======
+      </summary>
+
+      <div className="absolute -right-[240px] z-[100000] mt-[17px] flex h-[480px] w-[350px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg sm:w-[361px] lg:right-0">
+        <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-3">
+          <h5 className="text-lg font-semibold text-gray-800">Notification</h5>
+>>>>>>> 437883a (SCB API update)
         </div>
         <ul className="custom-scrollbar flex h-auto flex-col overflow-y-auto">
           {notifications.map((notification) => (
             <li key={`${notification.name}-${notification.time}`}>
+<<<<<<< HEAD
               <AdminDropdownItem
                 onItemClick={closeDropdown}
                 className="flex gap-3 rounded-lg border-b border-gray-100 px-4.5 py-3 hover:bg-gray-100"
               >
+=======
+              <AdminDropdownItem className="flex gap-3 rounded-lg border-b border-gray-100 px-4.5 py-3 hover:bg-gray-100">
+>>>>>>> 437883a (SCB API update)
                 <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
                   <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2E75BD] text-xs font-bold text-white">
                     {notification.name.slice(0, 2).toUpperCase()}
@@ -129,7 +152,12 @@ export function AdminNotificationDropdown() {
         >
           View All Notifications
         </Link>
+<<<<<<< HEAD
       </AdminDropdown>
     </div>
+=======
+      </div>
+    </details>
+>>>>>>> 437883a (SCB API update)
   );
 }
