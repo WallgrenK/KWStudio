@@ -55,6 +55,25 @@ Supabase Auth JWT -> Render API -> Supabase -> KWStudio Admin
 
 Admin leads no longer fall back to demo data. Empty Supabase tables show a real empty state.
 
+## AI-Style Lead Workspace
+
+The Leads page includes deterministic AI-style opportunity summaries in the lead details panel. This is not a real AI integration yet. The frontend derives the summary from existing Supabase data until a separate AI analysis service is built.
+
+The current rules use:
+
+- `companies`: name, location, contact details, detected website, and industry context.
+- `leads`: status, priority, score, estimated value, source, service interest, notes, owner, and next action.
+- `website_audits`: SEO score, audit summary, status code, SSL, title, meta description, robots.txt, and sitemap checks.
+
+Fallback examples:
+
+- Leads without a verified website are treated as starter website opportunities.
+- Leads with a website and weak SEO are treated as redesign + SEO opportunities.
+- Leads with moderate SEO are treated as audit or refresh opportunities.
+- Leads with stronger audit scores are treated as care plan or conversion review opportunities.
+
+The details panel also shows deterministic score breakdowns for Website, SEO, Technical, Conversion, and Business fit. Missing audit data is shown as pending instead of falling back to demo content.
+
 ## SCB Lead Finder Mapping
 
 Frontend filter values are stable UI ids, such as `solna`, `retail_ecommerce`, and `last_90_days`. They are translated to SCB request JSON in `app/services/scbMapper.ts` before any Render API call is made.

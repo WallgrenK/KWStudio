@@ -326,6 +326,18 @@ const leadServices: Array<LeadServiceInterest | "All"> = ["All", "New website", 
 const defaultLeadResult: LeadsResult = { leads: [], latestImport: null, source: "unconfigured" };
 const leadsPageSizeOptions = [10, 25, 50];
 type LeadWorkflowTab = "all" | "pipeline" | "follow-ups" | "proposals";
+type ScoreBreakdownItem = {
+  label: string;
+  value: number;
+  detail: string;
+};
+
+type LeadOpportunity = {
+  summary: string;
+  recommendedService: string;
+  estimatedValue: string;
+  topIssues: string[];
+};
 
 const leadWorkflowTabs: Array<{ id: LeadWorkflowTab; label: string }> = [
   { id: "all", label: "All Leads" },
@@ -414,22 +426,130 @@ function leadSearchText(lead: LeadWithCompanyAndAudit) {
 
 function buildLeadMetrics(leads: LeadWithCompanyAndAudit[]) {
   const statusCount = (stage: LeadStage) => leads.filter((lead) => mapLeadStage(lead.status) === stage).length;
-  const proposalValue = leads
-    .filter((lead) => mapLeadStage(lead.status) === "Proposal")
-    .reduce((total, lead) => total + (lead.estimated_value ?? 0), 0);
-  const wonValue = leads
-    .filter((lead) => mapLeadStage(lead.status) === "Won")
-    .reduce((total, lead) => total + (lead.estimated_value ?? 0), 0);
-  const conversionRate = leads.length > 0 ? Math.round((statusCount("Won") / leads.length) * 100) : 0;
+  const noWebsite = leads.filter((lead) => !lead.company?.website_url || !lead.company.website_found).length;
+  const needAudit = leads.filter((lead) => lead.company?.website_url && !lead.latestAudit).length;
+  const audited = leads.filter((lead) => Boolean(lead.latestAudit)).length;
+  const hotOpportunities = leads.filter((lead) => mapLeadPriority(lead.priority) === "High" || (lead.score ?? 0) >= 75).length;
+  const readyToContact = leads.filter((lead) => {
+    const stage = mapLeadStage(lead.status);
+    return stage === "New" || stage === "Qualified" || Boolean(lead.next_action);
+  }).length;
 
   return [
-    { label: "Total leads", value: String(leads.length), detail: "All leads currently loaded", href: "/admin/leads" },
-    { label: "New leads", value: String(statusCount("New")), detail: "Ready for first review", href: "/admin/leads" },
-    { label: "Qualified", value: String(statusCount("Qualified")), detail: "Ready for discovery", href: "/admin/pipeline" },
-    { label: "Proposal value", value: formatCurrency(proposalValue), detail: "Open proposal stage", href: "/admin/proposals" },
-    { label: "Won this month", value: formatCurrency(wonValue), detail: `${statusCount("Won")} won opportunities`, href: "/admin/pipeline" },
-    { label: "Lost / archived", value: String(statusCount("Lost")), detail: "Review source quality", href: "/admin/leads" },
-    { label: "Conversion rate", value: `${conversionRate}%`, detail: "Won from current lead set", href: "/admin/leads" },
+    { label: "Total leads", value: String(leads.length), detail: `${statusCount("New")} new, ${statusCount("Qualified")} qualified`, href: "/admin/leads" },
+    { label: "Hot opportunities", value: String(hotOpportunities), detail: "High priority or strong score", href: "/admin/leads" },
+    { label: "Need audit", value: String(needAudit), detail: "Website found, no audit yet", href: "/admin/leads" },
+    { label: "No website", value: String(noWebsite), detail: "Starter website candidates", href: "/admin/leads" },
+    { label: "Audited websites", value: String(audited), detail: "With latest audit data", href: "/admin/websites" },
+    { label: "Ready to contact", value: String(readyToContact), detail: "New, qualified or with next action", href: "/admin/follow-ups" },
+  ];
+}
+
+function getRecommendedService(lead: LeadWithCompanyAndAudit) {
+  if (!lead.company?.website_url || !lead.company.website_found) return "Starter website";
+
+  const seoScore = lead.latestAudit?.seo_score;
+  if (typeof seoScore !== "number") return "SEO audit / website refresh";
+  if (seoScore < 40) return "Website redesign + SEO";
+  if (seoScore < 70) return "SEO audit / website refresh";
+  return "Care plan / conversion review";
+}
+
+function getEstimatedValue(lead: LeadWithCompanyAndAudit) {
+  if (!lead.company?.website_url || !lead.company.website_found) return "15 000-30 000 SEK";
+
+  const seoScore = lead.latestAudit?.seo_score;
+  if (typeof seoScore !== "number") return "20 000-45 000 SEK";
+  if (seoScore < 40) return "35 000-65 000 SEK";
+  if (seoScore < 70) return "20 000-45 000 SEK";
+  return "8 000-20 000 SEK";
+}
+
+function getTopIssues(lead: LeadWithCompanyAndAudit) {
+  const issues: string[] = [];
+  const audit = lead.latestAudit;
+
+  if (!lead.company?.website_url || !lead.company.website_found) {
+    return ["No verified website", "Needs manual business research", "Starter offer opportunity"];
+  }
+
+  if (!audit) {
+    issues.push("Website audit pending");
+  } else {
+    if (audit.has_meta_description === false) issues.push("Missing meta description");
+    if (audit.has_title === false) issues.push("Missing title");
+    if (audit.has_robots_txt === false) issues.push("Missing robots.txt");
+    if (audit.has_sitemap === false) issues.push("Missing sitemap.xml");
+    if ((audit.seo_score ?? 100) < 40) issues.push("Weak SEO foundation");
+    if ((audit.seo_score ?? 100) < 70) issues.push("Low SEO score");
+    if (!audit.has_ssl || (audit.status_code && audit.status_code >= 400)) {
+      issues.push("Technical website improvements needed");
+    }
+  }
+
+  if ((lead.score ?? 100) < 45) issues.push("Low lead score");
+  if (issues.length === 0) issues.push("Needs manual review");
+
+  return [...new Set(issues)].slice(0, 5);
+}
+
+function getLeadOpportunity(lead: LeadWithCompanyAndAudit): LeadOpportunity {
+  if (!lead.company?.website_url || !lead.company.website_found) {
+    return {
+      summary: "No verified website found. Good fit for a starter website offer.",
+      recommendedService: getRecommendedService(lead),
+      estimatedValue: getEstimatedValue(lead),
+      topIssues: getTopIssues(lead),
+    };
+  }
+
+  const seoScore = lead.latestAudit?.seo_score;
+  const summary = typeof seoScore !== "number"
+    ? "Website found, but no audit is available yet. Run an audit before outreach."
+    : seoScore < 40
+      ? "Website is live but shows weak SEO fundamentals. Strong fit for redesign-led outreach."
+      : seoScore < 70
+        ? "Website has a usable base with visible improvement potential. Good fit for audit-first outreach."
+        : "Website looks relatively healthy. Best fit is a focused care plan or conversion review.";
+
+  return {
+    summary,
+    recommendedService: getRecommendedService(lead),
+    estimatedValue: getEstimatedValue(lead),
+    topIssues: getTopIssues(lead),
+  };
+}
+
+function getScoreBreakdown(lead: LeadWithCompanyAndAudit): ScoreBreakdownItem[] {
+  const audit = lead.latestAudit;
+  const hasWebsite = Boolean(lead.company?.website_url && lead.company.website_found);
+  const website = hasWebsite ? 20 : 0;
+  const seo = typeof audit?.seo_score === "number" ? Math.round(Math.min(Math.max(audit.seo_score, 0), 100) / 5) : 0;
+  const technical = audit
+    ? [
+        audit.has_ssl,
+        audit.has_robots_txt,
+        audit.has_sitemap,
+        typeof audit.status_code === "number" && audit.status_code >= 200 && audit.status_code < 400,
+      ].filter(Boolean).length * 5
+    : hasWebsite ? 5 : 0;
+  const conversion = audit
+    ? audit.has_title && audit.has_meta_description
+      ? 20
+      : audit.has_title || audit.has_meta_description
+        ? 10
+        : 4
+    : hasWebsite ? 4 : 0;
+  const priorityFit: Record<LeadPriority, number> = { High: 20, Medium: 14, Low: 8 };
+  const scoreFit = Math.round(Math.min(Math.max(lead.score ?? 0, 0), 100) / 5);
+  const businessFit = Math.max(scoreFit, priorityFit[mapLeadPriority(lead.priority)]);
+
+  return [
+    { label: "Website", value: website, detail: hasWebsite ? "Verified website found" : "No verified website" },
+    { label: "SEO", value: seo, detail: typeof audit?.seo_score === "number" ? `SEO ${audit.seo_score}/100` : "No SEO audit yet" },
+    { label: "Technical", value: technical, detail: "SSL, robots, sitemap and status" },
+    { label: "Conversion", value: conversion, detail: "Title and meta basics" },
+    { label: "Business fit", value: businessFit, detail: `${mapLeadPriority(lead.priority)} priority, score ${lead.score ?? 0}` },
   ];
 }
 
@@ -467,6 +587,50 @@ function PriorityBadge({ priority }: { priority: LeadPriority }) {
   };
 
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${styles[priority]}`}>{priority}</span>;
+}
+
+function ScoreBadge({ score }: { score: number | null }) {
+  const value = score ?? 0;
+  const style = value >= 75
+    ? "bg-emerald-50 text-emerald-700"
+    : value >= 50
+      ? "bg-blue-50 text-[#2E75BD]"
+      : value >= 30
+        ? "bg-amber-50 text-amber-700"
+        : "bg-red-50 text-red-600";
+
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{value}/100</span>;
+}
+
+function WebsiteBadge({ lead }: { lead: LeadWithCompanyAndAudit }) {
+  if (!lead.company?.website_url || !lead.company.website_found) {
+    return <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">No website</span>;
+  }
+
+  return (
+    <a className="block max-w-52 truncate text-sm font-medium text-[#2E75BD]" href={lead.company.website_url} target="_blank" rel="noreferrer">
+      {lead.company.website_url}
+    </a>
+  );
+}
+
+function ScoreBreakdown({ items }: { items: ScoreBreakdownItem[] }) {
+  return (
+    <div className="grid gap-3">
+      {items.map((item) => (
+        <div key={item.label}>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-gray-700">{item.label}</span>
+            <span className="text-xs font-semibold text-gray-500">{item.value}/20</span>
+          </div>
+          <div className="h-2 rounded-full bg-gray-100">
+            <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${Math.min(item.value * 5, 100)}%` }} />
+          </div>
+          <p className="mt-1 text-xs text-gray-500">{item.detail}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function SelectField({
@@ -722,6 +886,9 @@ function LeadDetailsPanel({
   onQualify: (lead: LeadWithCompanyAndAudit) => void;
 }) {
   const websiteUrl = lead.company?.website_url;
+  const opportunity = getLeadOpportunity(lead);
+  const scoreBreakdown = getScoreBreakdown(lead);
+  const audit = lead.latestAudit;
 
   return (
     <aside className="rounded-2xl border border-gray-200 bg-white p-5 xl:sticky xl:top-6">
@@ -742,45 +909,103 @@ function LeadDetailsPanel({
 
       <div className="mb-5 flex flex-wrap gap-2">
         <LeadStageBadge stage={mapLeadStage(lead.status)} />
+        <ScoreBadge score={lead.score} />
         <PriorityBadge priority={mapLeadPriority(lead.priority)} />
-        <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          Score {lead.score ?? 0}/100
-        </span>
       </div>
 
-      <dl className="grid gap-4">
+      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#2E75BD]">Opportunity summary</p>
+        <p className="mt-2 text-sm leading-6 text-gray-700">{opportunity.summary}</p>
+      </div>
+
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+        <div className="rounded-xl border border-gray-100 p-4">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Recommended service</span>
+          <strong className="mt-1 block text-sm text-gray-800">{opportunity.recommendedService}</strong>
+        </div>
+        <div className="rounded-xl border border-gray-100 p-4">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Estimated value</span>
+          <strong className="mt-1 block text-sm text-gray-800">{opportunity.estimatedValue}</strong>
+        </div>
+      </div>
+
+      <div className="mb-5">
+        <h3 className="mb-3 text-sm font-semibold text-gray-800">Score breakdown</h3>
+        <ScoreBreakdown items={scoreBreakdown} />
+      </div>
+
+      <div className="mb-5">
+        <h3 className="mb-3 text-sm font-semibold text-gray-800">Top issues</h3>
+        <div className="flex flex-wrap gap-2">
+          {opportunity.topIssues.map((issue) => (
+            <span key={issue} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">{issue}</span>
+          ))}
+        </div>
+      </div>
+
+      <dl className="mb-5 grid gap-4">
         <LeadDetailItem label="Company name">{leadCompanyName(lead)}</LeadDetailItem>
-        <LeadDetailItem label="Organization number">{lead.company?.org_number ?? "No org number"}</LeadDetailItem>
-        <LeadDetailItem label="Email / contact">{lead.company?.email ?? lead.company?.phone ?? "No contact"}</LeadDetailItem>
+        <LeadDetailItem label="Location">{lead.company?.city ?? lead.company?.municipality ?? lead.company?.county ?? "No location"}</LeadDetailItem>
         <LeadDetailItem label="Website">
           {websiteUrl ? (
             <a className="break-all font-medium text-[#2E75BD]" href={websiteUrl} target="_blank" rel="noreferrer">
               {websiteUrl}
             </a>
           ) : (
-            "No website"
+            "No verified website found"
           )}
         </LeadDetailItem>
-        <LeadDetailItem label="Source">{leadSourceLabel(lead)}</LeadDetailItem>
-        <LeadDetailItem label="Service">{lead.service_interest ?? "Website opportunity"}</LeadDetailItem>
-        <LeadDetailItem label="Stage">{mapLeadStage(lead.status)}</LeadDetailItem>
-        <LeadDetailItem label="Latest audit">
-          <span className="block font-medium text-gray-800">SEO {lead.latestAudit?.seo_score ?? "-"}</span>
-          <span className="mt-1 block text-gray-500">{lead.latestAudit?.audit_summary ?? lead.latestEvent?.message ?? "No audit summary"}</span>
-        </LeadDetailItem>
-        <LeadDetailItem label="Last activity">{formatShortDate(lead.updated_at)}</LeadDetailItem>
-        <LeadDetailItem label="Notes / next action">{lead.notes ?? lead.next_action ?? "Review lead"}</LeadDetailItem>
+        <LeadDetailItem label="Contact info">{lead.company?.email ?? lead.company?.phone ?? "No contact info"}</LeadDetailItem>
+        <LeadDetailItem label="Source / service">{leadSourceLabel(lead)} - {lead.service_interest ?? opportunity.recommendedService}</LeadDetailItem>
+        <LeadDetailItem label="Suggested next action">{lead.next_action ?? `Contact with ${opportunity.recommendedService.toLowerCase()} angle`}</LeadDetailItem>
+        <LeadDetailItem label="Notes">{lead.notes ?? "Needs manual review before outreach."}</LeadDetailItem>
       </dl>
 
-      <div className="mt-6 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-        <button className="btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking} onClick={() => onAudit(lead)}>
-          Audit
+      <div className="mb-5 rounded-xl border border-gray-100 p-4">
+        <h3 className="text-sm font-semibold text-gray-800">Latest audit</h3>
+        {audit ? (
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+            <div><dt className="text-xs text-gray-400">SEO</dt><dd className="font-medium text-gray-800">{audit.seo_score ?? "-"}/100</dd></div>
+            <div><dt className="text-xs text-gray-400">Status</dt><dd className="font-medium text-gray-800">{audit.status_code ?? "-"}</dd></div>
+            <div><dt className="text-xs text-gray-400">SSL</dt><dd className="font-medium text-gray-800">{audit.has_ssl ? "Yes" : "No"}</dd></div>
+            <div><dt className="text-xs text-gray-400">Title/meta</dt><dd className="font-medium text-gray-800">{audit.has_title ? "Title" : "No title"} / {audit.has_meta_description ? "Meta" : "No meta"}</dd></div>
+            <div><dt className="text-xs text-gray-400">Robots</dt><dd className="font-medium text-gray-800">{audit.has_robots_txt ? "Found" : "Missing"}</dd></div>
+            <div><dt className="text-xs text-gray-400">Sitemap</dt><dd className="font-medium text-gray-800">{audit.has_sitemap ? "Found" : "Missing"}</dd></div>
+            <div className="col-span-2"><dt className="text-xs text-gray-400">Summary</dt><dd className="mt-1 text-gray-600">{audit.audit_summary ?? "No audit summary"}</dd></div>
+          </dl>
+        ) : (
+          <div className="mt-3">
+            <p className="text-sm text-gray-500">{websiteUrl ? "Audit pending" : "No audit yet"}</p>
+            {websiteUrl ? (
+              <button className="mt-3 btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking} onClick={() => onAudit(lead)}>
+                Run audit
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-2">
+        <button className="btn btn-primary" type="button" onClick={() => onQualify(lead)}>
+          Qualify lead
         </button>
         <button className="btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking} onClick={() => onRefreshScore(lead)}>
-          Score
+          Recalculate score
         </button>
-        <button className="btn btn-primary" type="button" onClick={() => onQualify(lead)}>
-          Qualify
+        <button className="btn btn-outline" type="button" disabled={!isKwstudioApiConfigured || isWorking || !websiteUrl} onClick={() => onAudit(lead)}>
+          Audit website
+        </button>
+        {websiteUrl ? (
+          <a className="btn btn-outline text-center" href={websiteUrl} target="_blank" rel="noreferrer">
+            Open website
+          </a>
+        ) : (
+          <button className="btn btn-outline" type="button" disabled title="No verified website found">
+            Open website
+          </button>
+        )}
+        <button className="btn btn-outline" type="button" disabled title="Coming soon">
+          Mark contacted - Coming soon
         </button>
       </div>
     </aside>
@@ -979,7 +1204,7 @@ export function LeadsPage() {
       key: "lead",
       header: "Lead / company",
       render: (lead) => (
-        <div className="min-w-56 py-1">
+        <div className={`min-w-56 border-l-2 py-1 pl-3 ${mapLeadPriority(lead.priority) === "High" ? "border-[#2E75BD]" : "border-transparent"}`}>
           <strong className="block text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</strong>
           <span className="mt-1 block truncate text-sm text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "No company context"}</span>
         </div>
@@ -990,19 +1215,23 @@ export function LeadsPage() {
       header: "Website",
       render: (lead) => (
         <div className="min-w-48">
-          {lead.company?.website_url ? (
-            <a className="block max-w-52 truncate text-sm font-medium text-[#2E75BD]" href={lead.company.website_url} target="_blank" rel="noreferrer">
-              {lead.company.website_url}
-            </a>
-          ) : (
-            <span className="block text-sm text-gray-500">No website</span>
-          )}
+          <WebsiteBadge lead={lead} />
         </div>
       ),
     },
     { key: "status", header: "Status", render: (lead) => <LeadStageBadge stage={mapLeadStage(lead.status)} /> },
-    { key: "score", header: "Score", render: (lead) => <span className="font-semibold text-gray-800">{lead.score ?? 0}/100</span> },
+    { key: "score", header: "Score", render: (lead) => <ScoreBadge score={lead.score} /> },
     { key: "priority", header: "Priority", render: (lead) => <PriorityBadge priority={mapLeadPriority(lead.priority)} /> },
+    {
+      key: "opportunity",
+      header: "Opportunity",
+      render: (lead) => (
+        <div className="min-w-44">
+          <span className="block truncate text-sm font-medium text-gray-800">{getRecommendedService(lead)}</span>
+          <span className="mt-0.5 block text-xs text-gray-500">{getEstimatedValue(lead)}</span>
+        </div>
+      ),
+    },
     { key: "next", header: "Next action", render: (lead) => <span className="block max-w-64 truncate text-sm text-gray-600">{lead.next_action ?? "Review lead"}</span> },
     { key: "owner", header: "Owner", render: (lead) => <span className="whitespace-nowrap text-sm text-gray-600">{lead.assigned_to ?? "Kevin"}</span> },
     {
