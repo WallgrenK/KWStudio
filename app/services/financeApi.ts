@@ -51,6 +51,65 @@ export type FinanceImportResultDto = {
   categorizedRows: number;
 };
 
+export type FinanceReceiptTransactionSummaryDto = {
+  id: string;
+  description: string;
+  booking_date: string | null;
+  payment_date: string | null;
+  gross_amount: number | string;
+  currency: string;
+  receipt_status: string;
+  transaction_type: string;
+};
+
+export type FinanceReceiptCandidateDto = {
+  id?: string;
+  receipt_id?: string;
+  transaction_id?: string;
+  score: number;
+  reason: string | null;
+  amount_match: boolean;
+  date_match: boolean;
+  supplier_match: boolean;
+  currency_match: boolean;
+  transaction: FinanceReceiptTransactionSummaryDto;
+};
+
+export type FinanceReceiptDto = {
+  id: string;
+  transaction_id: string | null;
+  filename: string;
+  original_filename: string | null;
+  file_path: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  supplier: string | null;
+  receipt_date: string | null;
+  total_amount: number | string | null;
+  vat_amount: number | string | null;
+  currency: string | null;
+  extracted_text: string | null;
+  extraction_status: string;
+  match_status: string;
+  best_transaction_id: string | null;
+  best_match_score: number | null;
+  match_reason: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  confirmed_transaction?: FinanceReceiptTransactionSummaryDto | null;
+  best_transaction?: FinanceReceiptTransactionSummaryDto | null;
+  candidates?: FinanceReceiptCandidateDto[];
+};
+
+export type FinanceReceiptUploadFields = {
+  supplier?: string;
+  receiptDate?: string;
+  totalAmount?: string;
+  vatAmount?: string;
+  currency?: string;
+};
+
 type ApiResult<T> = {
   ok: boolean;
   data?: T;
@@ -132,5 +191,72 @@ export function getFinanceTransactions(params: { status?: string; receipt_status
 
   return requestFinanceApi<{ ok: true; transactions: FinanceTransactionDto[] }>(
     `/finance/transactions${query ? `?${query}` : ""}`,
+  );
+}
+
+export function uploadFinanceReceipt(file: File, fields: FinanceReceiptUploadFields = {}) {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (fields.supplier) formData.append("supplier", fields.supplier);
+  if (fields.receiptDate) formData.append("receiptDate", fields.receiptDate);
+  if (fields.totalAmount) formData.append("totalAmount", fields.totalAmount);
+  if (fields.vatAmount) formData.append("vatAmount", fields.vatAmount);
+  if (fields.currency) formData.append("currency", fields.currency);
+
+  return requestFinanceApi<{
+    ok: true;
+    receipt: FinanceReceiptDto;
+    candidates: FinanceReceiptCandidateDto[];
+    extraction: {
+      supplier: string | null;
+      receiptDate: string | null;
+      totalAmount: number | null;
+      vatAmount: number | null;
+      currency: string;
+    };
+    bestMatch: FinanceReceiptCandidateDto | null;
+  }>("/finance/receipts/upload", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export function getFinanceReceipts(params: { match_status?: string; limit?: number; includeCandidates?: boolean } = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.match_status) searchParams.set("match_status", params.match_status);
+  if (params.limit) searchParams.set("limit", String(params.limit));
+  if (params.includeCandidates) searchParams.set("includeCandidates", "true");
+  const query = searchParams.toString();
+
+  return requestFinanceApi<{ ok: true; receipts: FinanceReceiptDto[] }>(
+    `/finance/receipts${query ? `?${query}` : ""}`,
+  );
+}
+
+export function getFinanceReceipt(id: string) {
+  return requestFinanceApi<{ ok: true; receipt: FinanceReceiptDto }>(`/finance/receipts/${id}`);
+}
+
+export function matchFinanceReceipt(receiptId: string, transactionId: string) {
+  return requestFinanceApi<{ ok: true; receipt: FinanceReceiptDto; transaction: FinanceReceiptTransactionSummaryDto }>(
+    `/finance/receipts/${receiptId}/match`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionId }),
+    },
+  );
+}
+
+export function unmatchFinanceReceipt(receiptId: string) {
+  return requestFinanceApi<{ ok: true; receipt: FinanceReceiptDto }>(`/finance/receipts/${receiptId}/unmatch`, {
+    method: "POST",
+  });
+}
+
+export function recalculateReceiptMatches(receiptId: string) {
+  return requestFinanceApi<{ ok: true; receipt: FinanceReceiptDto; candidates: FinanceReceiptCandidateDto[] }>(
+    `/finance/receipts/${receiptId}/recalculate-matches`,
+    { method: "POST" },
   );
 }

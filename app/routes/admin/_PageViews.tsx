@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { ArrowRight, CheckCircle2, Plus, ReceiptText, Upload } from "lucide-react";
 import { AdminTabs as FinanceTabs } from "~/components/admin/AdminTabs";
@@ -139,10 +139,17 @@ import {
 } from "~/services/leads";
 import {
   getFinanceImports,
+  getFinanceReceipts,
   getFinanceTransactions,
   importRevolutCsv,
+  matchFinanceReceipt,
+  recalculateReceiptMatches,
+  unmatchFinanceReceipt,
+  uploadFinanceReceipt,
   type FinanceImportBatchDto,
   type FinanceImportResultDto,
+  type FinanceReceiptCandidateDto,
+  type FinanceReceiptDto,
   type FinanceTransactionDto,
 } from "~/services/financeApi";
 import { buildScbRequest, type ScbLeadFinderFilters } from "~/services/scbMapper";
@@ -1947,17 +1954,44 @@ function FinanceDefinitionList({ rows }: { rows: Array<{ label: string; value: s
   );
 }
 
-function FinanceQuickActionButtons() {
+function FinanceQuickActionButtons({
+  onImportCsv,
+  onOpenTab,
+}: {
+  onImportCsv: () => void;
+  onOpenTab: (tabId: FinanceTabId) => void;
+}) {
   return (
     <div className="flex flex-wrap gap-2">
       {financeQuickActions.map((action) => {
         const Icon = action.icon;
+        const handleClick = () => {
+          if (action.label === "Import CSV") {
+            onImportCsv();
+            return;
+          }
+
+          if (action.label === "Add transaction") {
+            onOpenTab("transactions");
+            return;
+          }
+
+          if (action.label === "Upload receipt") {
+            onOpenTab("receipts");
+            return;
+          }
+
+          if (action.label === "Generate VAT report") {
+            onOpenTab("vat");
+          }
+        };
 
         return (
           <button
             key={action.label}
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
             type="button"
+            onClick={handleClick}
           >
             <Icon className="size-4" aria-hidden="true" />
             {action.label}
@@ -2026,6 +2060,27 @@ function formatFinanceAmount(amount: number, currency = "SEK") {
   });
 
   return `${amount < 0 ? "-" : "+"}${formatted} ${currency}`;
+}
+
+function formatReceiptAmount(value: number | string | null | undefined, currency = "SEK") {
+  const amount = toNumber(value);
+  if (!amount) return "-";
+  return `${amount.toLocaleString("sv-SE", {
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  })} ${currency}`;
+}
+
+function receiptMatchStatus(status: string) {
+  if (status === "matched") return "Matched";
+  if (status === "suggested") return "Ready";
+  if (status === "unmatched") return "Review";
+  return "Pending";
+}
+
+function transactionSummary(transaction: FinanceReceiptDto["best_transaction"] | FinanceReceiptDto["confirmed_transaction"]) {
+  if (!transaction) return "-";
+  return `${transaction.description} - ${formatFinanceAmount(toNumber(transaction.gross_amount), transaction.currency)}`;
 }
 
 function OverviewTab({
@@ -2257,41 +2312,27 @@ function OverviewTab({
 
 function ImportTab({
   backendImports,
-  onBackendRefresh,
+  importResultState,
+  importError,
+  isImporting,
+  onImportFile,
+  onOpenFilePicker,
 }: {
   backendImports: FinanceImportBatchDto[];
-  onBackendRefresh: () => void;
+  importResultState: FinanceImportResultDto | null;
+  importError: string | null;
+  isImporting: boolean;
+  onImportFile: (file: File | null | undefined) => void;
+  onOpenFilePicker: () => void;
 }) {
-  const [isImporting, setIsImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [backendResult, setBackendResult] = useState<FinanceImportResultDto | null>(null);
-
-  async function handleFile(file: File | null | undefined) {
-    if (!file) return;
-
-    setIsImporting(true);
-    setImportError(null);
-
-    const result = await importRevolutCsv(file);
-
-    if (result.ok && result.data) {
-      setBackendResult(result.data);
-      onBackendRefresh();
-    } else {
-      setImportError(result.error ?? "CSV import failed.");
-    }
-
-    setIsImporting(false);
-  }
-
-  const resultRows = backendResult
+  const resultRows = importResultState
     ? [
-        { label: "Rows detected", value: String(backendResult.totalRows) },
-        { label: "Imported rows", value: String(backendResult.importedRows) },
-        { label: "Duplicates skipped", value: String(backendResult.duplicateRows) },
-        { label: "Skipped rows", value: String(backendResult.skippedRows) },
-        { label: "Categorized", value: String(backendResult.categorizedRows) },
-        { label: "Need review", value: String(backendResult.reviewRows) },
+        { label: "Rows detected", value: String(importResultState.totalRows) },
+        { label: "Imported rows", value: String(importResultState.importedRows) },
+        { label: "Duplicates skipped", value: String(importResultState.duplicateRows) },
+        { label: "Skipped rows", value: String(importResultState.skippedRows) },
+        { label: "Categorized", value: String(importResultState.categorizedRows) },
+        { label: "Need review", value: String(importResultState.reviewRows) },
       ]
     : importResult;
   const columns: Array<AdminTableColumn<(typeof importPreviewRows)[number]>> = [
@@ -2316,7 +2357,11 @@ function ImportTab({
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
-              void handleFile(event.dataTransfer.files[0]);
+              onImportFile(event.dataTransfer.files[0]);
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              onOpenFilePicker();
             }}
           >
             <Upload className="size-10 text-[#2E75BD]" aria-hidden="true" />
@@ -2324,18 +2369,11 @@ function ImportTab({
             <p className="mt-2 text-sm text-gray-500">Accepted format: .csv</p>
             <p className="mt-1 text-sm font-medium text-gray-700">Demo filename: revolut-pro-transactions-july.csv</p>
             <span className="btn btn-primary mt-5">{isImporting ? "Importing..." : "Select CSV file"}</span>
-            <input
-              className="sr-only"
-              type="file"
-              accept=".csv,text/csv"
-              disabled={isImporting}
-              onChange={(event) => void handleFile(event.target.files?.[0])}
-            />
           </label>
           {importError ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{importError}</p> : null}
-          {backendResult ? (
+          {importResultState ? (
             <p className="mt-4 rounded-xl bg-green-50 p-3 text-sm font-medium text-green-700">
-              CSV import completed. Batch ID: {backendResult.batchId}
+              CSV import completed. Batch ID: {importResultState.batchId}
             </p>
           ) : null}
         </FinancePanel>
@@ -2392,7 +2430,13 @@ function ImportTab({
   );
 }
 
-function TransactionsTab({ backendTransactions }: { backendTransactions: FinanceTransaction[] }) {
+function TransactionsTab({
+  backendTransactions,
+  onOpenReceipts,
+}: {
+  backendTransactions: FinanceTransaction[];
+  onOpenReceipts: () => void;
+}) {
   const [filter, setFilter] = useState("all");
   const rows = backendTransactions.length > 0 ? backendTransactions : financeTransactions;
   const filteredRows = rows.filter((transaction) => {
@@ -2412,6 +2456,15 @@ function TransactionsTab({ backendTransactions }: { backendTransactions: Finance
     { key: "receipt", header: "Receipt", render: (transaction) => <StatusBadge status={receiptStatus(transaction.receiptStatus)} /> },
     { key: "confidence", header: "Confidence", render: (transaction) => `${transaction.aiConfidence}%` },
     { key: "status", header: "Status", render: (transaction) => <StatusBadge status={financeStatus(transaction.status)} /> },
+    {
+      key: "action",
+      header: "Action",
+      render: (transaction) => transaction.receiptStatus === "missing" ? (
+        <button className="text-sm font-semibold text-[#2E75BD]" type="button" onClick={onOpenReceipts}>
+          Upload receipt
+        </button>
+      ) : "-",
+    },
   ];
 
   return (
@@ -2518,36 +2571,243 @@ function ExpensesFinanceTab() {
   );
 }
 
-function ReceiptsTab() {
-  const columns: Array<AdminTableColumn<FinanceReceipt>> = [
-    { key: "filename", header: "Filename", render: (receipt) => <strong className="text-gray-800">{receipt.filename}</strong> },
-    { key: "supplier", header: "Supplier", render: (receipt) => receipt.supplier },
-    { key: "date", header: "Date", render: (receipt) => receipt.date },
-    { key: "amount", header: "Amount", render: (receipt) => receipt.amount },
-    { key: "vat", header: "VAT", render: (receipt) => receipt.vat },
-    { key: "matched", header: "Matched transaction", render: (receipt) => receipt.matchedTransaction },
-    { key: "status", header: "Status", render: (receipt) => <StatusBadge status={receipt.status} /> },
+function ReceiptsTab({
+  backendReceipts,
+  backendTransactions,
+  onBackendRefresh,
+}: {
+  backendReceipts: FinanceReceiptDto[];
+  backendTransactions: FinanceTransaction[];
+  onBackendRefresh: () => void;
+}) {
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [supplier, setSupplier] = useState("");
+  const [receiptDate, setReceiptDate] = useState("");
+  const [totalAmount, setTotalAmount] = useState("");
+  const [vatAmount, setVatAmount] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [uploadedReceipt, setUploadedReceipt] = useState<FinanceReceiptDto | null>(null);
+
+  async function handleReceiptUpload() {
+    if (!receiptFile || isUploading) return;
+
+    setIsUploading(true);
+    setReceiptError(null);
+
+    const result = await uploadFinanceReceipt(receiptFile, {
+      supplier,
+      receiptDate,
+      totalAmount,
+      vatAmount,
+      currency: "SEK",
+    });
+
+    if (result.ok && result.data) {
+      setUploadedReceipt(result.data.receipt);
+      setReceiptFile(null);
+      onBackendRefresh();
+    } else {
+      setReceiptError(result.error ?? "Receipt upload failed.");
+    }
+
+    setIsUploading(false);
+  }
+
+  async function handleMatch(receiptId: string, transactionId: string) {
+    const result = await matchFinanceReceipt(receiptId, transactionId);
+    if (result.ok && result.data) {
+      setUploadedReceipt(result.data.receipt);
+      onBackendRefresh();
+    } else {
+      setReceiptError(result.error ?? "Could not match receipt.");
+    }
+  }
+
+  async function handleUnmatch(receiptId: string) {
+    const result = await unmatchFinanceReceipt(receiptId);
+    if (result.ok && result.data) {
+      setUploadedReceipt(result.data.receipt);
+      onBackendRefresh();
+    } else {
+      setReceiptError(result.error ?? "Could not unmatch receipt.");
+    }
+  }
+
+  async function handleRecalculate(receiptId: string) {
+    const result = await recalculateReceiptMatches(receiptId);
+    if (result.ok && result.data) {
+      setUploadedReceipt(result.data.receipt);
+      onBackendRefresh();
+    } else {
+      setReceiptError(result.error ?? "Could not recalculate matches.");
+    }
+  }
+
+  const rows = backendReceipts.length > 0 ? backendReceipts : [];
+  const selectedReceipt = uploadedReceipt ?? rows[0] ?? null;
+  const missingReceiptTransactions = backendTransactions.filter((transaction) => transaction.receiptStatus === "missing").slice(0, 6);
+  const columns: Array<AdminTableColumn<FinanceReceiptDto>> = [
+    { key: "filename", header: "Filename", render: (receipt) => <strong className="text-gray-800">{receipt.original_filename ?? receipt.filename}</strong> },
+    { key: "supplier", header: "Supplier", render: (receipt) => receipt.supplier ?? "-" },
+    { key: "date", header: "Date", render: (receipt) => receipt.receipt_date?.slice(0, 10) ?? "-" },
+    { key: "amount", header: "Amount", render: (receipt) => formatReceiptAmount(receipt.total_amount, receipt.currency ?? "SEK") },
+    { key: "vat", header: "VAT", render: (receipt) => formatReceiptAmount(receipt.vat_amount, receipt.currency ?? "SEK") },
+    { key: "matched", header: "Best match", render: (receipt) => transactionSummary(receipt.confirmed_transaction ?? receipt.best_transaction) },
+    { key: "status", header: "Status", render: (receipt) => <StatusBadge status={receiptMatchStatus(receipt.match_status)} /> },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (receipt) => (
+        <div className="flex flex-wrap gap-2">
+          {receipt.match_status === "matched" ? (
+            <button className="text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => void handleUnmatch(receipt.id)}>
+              Unmatch
+            </button>
+          ) : (
+            <button className="text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => void handleRecalculate(receipt.id)}>
+              Recalculate
+            </button>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6">
-      <FinancePanel title="Receipt upload" description="Upload PDF, JPG or PNG receipt. The demo extractor reads supplier, date, total amount and VAT, then matches it to a transaction.">
-        <div className="flex min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-          <ReceiptText className="size-10 text-[#2E75BD]" aria-hidden="true" />
-          <h3 className="mt-4 text-lg font-semibold text-gray-800">Upload PDF, JPG or PNG receipt</h3>
-          <button className="btn btn-primary mt-5" type="button">Upload receipt</button>
+      <FinancePanel title="Receipt upload" description="Upload PDF, JPG or PNG receipt. PDFs use text extraction when possible; images use manual fields and deterministic matching.">
+        <div
+          className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            setReceiptFile(event.dataTransfer.files[0] ?? null);
+          }}
+        >
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
+            <label className="flex min-h-44 flex-1 cursor-pointer flex-col items-center justify-center rounded-xl bg-white p-5 text-center transition hover:border-[#2E75BD]">
+              <ReceiptText className="size-10 text-[#2E75BD]" aria-hidden="true" />
+              <h3 className="mt-4 text-lg font-semibold text-gray-800">{receiptFile ? receiptFile.name : "Upload PDF, JPG or PNG receipt"}</h3>
+              <p className="mt-2 text-sm text-gray-500">Drop a file here or select one from disk.</p>
+              <span className="btn btn-primary mt-5">{receiptFile ? "Change file" : "Select receipt"}</span>
+              <input
+                className="sr-only"
+                type="file"
+                accept="application/pdf,image/png,image/jpeg"
+                onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+
+            <div className="grid flex-1 gap-3 sm:grid-cols-2">
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" placeholder="Supplier" value={supplier} onChange={(event) => setSupplier(event.target.value)} />
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" type="date" value={receiptDate} onChange={(event) => setReceiptDate(event.target.value)} />
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" placeholder="Total amount" value={totalAmount} onChange={(event) => setTotalAmount(event.target.value)} />
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" placeholder="VAT amount" value={vatAmount} onChange={(event) => setVatAmount(event.target.value)} />
+              <button className="btn btn-primary sm:col-span-2" type="button" disabled={!receiptFile || isUploading} onClick={() => void handleReceiptUpload()}>
+                {isUploading ? "Uploading..." : "Upload and match"}
+              </button>
+            </div>
+          </div>
         </div>
+        {receiptError ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{receiptError}</p> : null}
       </FinancePanel>
+
       <FinanceKpiGrid metrics={financeKpiGroups.receipts} />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {financeReceipts.map((receipt) => (
-          <FinancePanel key={receipt.id} title={receipt.filename}>
-            <p className="text-sm text-gray-500">{receipt.supplier} - {receipt.amount}</p>
-            <div className="mt-4"><StatusBadge status={receipt.status} /></div>
+
+      {selectedReceipt ? (
+        <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+          <FinancePanel title="Extracted fields">
+            <FinanceDefinitionList
+              rows={[
+                { label: "Supplier", value: selectedReceipt.supplier ?? "-" },
+                { label: "Receipt date", value: selectedReceipt.receipt_date?.slice(0, 10) ?? "-" },
+                { label: "Total amount", value: formatReceiptAmount(selectedReceipt.total_amount, selectedReceipt.currency ?? "SEK") },
+                { label: "VAT", value: formatReceiptAmount(selectedReceipt.vat_amount, selectedReceipt.currency ?? "SEK") },
+                { label: "Extraction status", value: selectedReceipt.extraction_status },
+              ]}
+            />
           </FinancePanel>
-        ))}
-      </div>
-      <AdminTable columns={columns} rows={financeReceipts} getRowKey={(receipt) => receipt.id} />
+
+          <FinancePanel title="Best match suggestion">
+            {selectedReceipt.best_transaction ? (
+              <div className="rounded-xl border border-gray-100 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">{selectedReceipt.best_transaction.description}</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {selectedReceipt.best_transaction.booking_date?.slice(0, 10) ?? "-"} - {formatFinanceAmount(toNumber(selectedReceipt.best_transaction.gross_amount), selectedReceipt.best_transaction.currency)}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-gray-500">{selectedReceipt.match_reason ?? "Suggested by deterministic matching."}</p>
+                  </div>
+                  <strong className="text-sm text-gray-800">{selectedReceipt.best_match_score ?? 0} score</strong>
+                </div>
+                {selectedReceipt.match_status !== "matched" ? (
+                  <button className="btn btn-primary mt-4" type="button" onClick={() => void handleMatch(selectedReceipt.id, selectedReceipt.best_transaction_id ?? selectedReceipt.best_transaction!.id)}>
+                    Confirm match
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-gray-500">No best match found yet. Use a candidate or manual fallback below.</p>
+            )}
+          </FinancePanel>
+        </div>
+      ) : null}
+
+      {selectedReceipt?.candidates && selectedReceipt.candidates.length > 0 ? (
+        <FinancePanel title="Match candidates">
+          <div className="grid gap-3 xl:grid-cols-2">
+            {selectedReceipt.candidates.map((candidate) => (
+              <div key={candidate.transaction.id} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">{candidate.transaction.description}</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {candidate.transaction.booking_date?.slice(0, 10) ?? "-"} - {formatFinanceAmount(toNumber(candidate.transaction.gross_amount), candidate.transaction.currency)}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-gray-500">{candidate.reason}</p>
+                  </div>
+                  <strong className="text-sm text-gray-800">{candidate.score}</strong>
+                </div>
+                <button className="mt-4 text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => void handleMatch(selectedReceipt.id, candidate.transaction.id)}>
+                  Match
+                </button>
+              </div>
+            ))}
+          </div>
+        </FinancePanel>
+      ) : selectedReceipt && missingReceiptTransactions.length > 0 ? (
+        <FinancePanel title="Manual fallback">
+          <div className="grid gap-3 xl:grid-cols-2">
+            {missingReceiptTransactions.map((transaction) => (
+              <div key={transaction.id} className="rounded-xl border border-gray-100 p-4">
+                <h3 className="text-sm font-semibold text-gray-800">{transaction.description}</h3>
+                <p className="mt-1 text-sm text-gray-500">{transaction.bookingDate} - {formatFinanceAmount(transaction.grossAmount, transaction.currency)}</p>
+                <button className="mt-4 text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => void handleMatch(selectedReceipt.id, transaction.id)}>
+                  Match
+                </button>
+              </div>
+            ))}
+          </div>
+        </FinancePanel>
+      ) : null}
+
+      {rows.length > 0 ? (
+        <AdminTable columns={columns} rows={rows} getRowKey={(receipt) => receipt.id} />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {financeReceipts.map((receipt) => (
+              <FinancePanel key={receipt.id} title={receipt.filename}>
+                <p className="text-sm text-gray-500">{receipt.supplier} - {receipt.amount}</p>
+                <div className="mt-4"><StatusBadge status={receipt.status} /></div>
+              </FinancePanel>
+            ))}
+          </div>
+          <p className="text-sm text-gray-500">Backend receipts are unavailable, so static demo receipts remain visible.</p>
+        </>
+      )}
     </div>
   );
 }
@@ -2736,16 +2996,42 @@ function renderFinanceTab(
   context: {
     backendImports: FinanceImportBatchDto[];
     backendTransactions: FinanceTransaction[];
+    backendReceipts: FinanceReceiptDto[];
     onBackendRefresh: () => void;
+    onOpenTab: (tabId: FinanceTabId) => void;
+    importResultState: FinanceImportResultDto | null;
+    importError: string | null;
+    isImporting: boolean;
+    onImportFile: (file: File | null | undefined) => void;
+    onOpenFilePicker: () => void;
   },
 ) {
   if (activeTab === "import") {
-    return <ImportTab backendImports={context.backendImports} onBackendRefresh={context.onBackendRefresh} />;
+    return (
+      <ImportTab
+        backendImports={context.backendImports}
+        importResultState={context.importResultState}
+        importError={context.importError}
+        isImporting={context.isImporting}
+        onImportFile={context.onImportFile}
+        onOpenFilePicker={context.onOpenFilePicker}
+      />
+    );
   }
-  if (activeTab === "transactions") return <TransactionsTab backendTransactions={context.backendTransactions} />;
+  if (activeTab === "transactions") {
+    return <TransactionsTab backendTransactions={context.backendTransactions} onOpenReceipts={() => context.onOpenTab("receipts")} />;
+  }
   if (activeTab === "invoices") return <InvoicesFinanceTab />;
   if (activeTab === "expenses") return <ExpensesFinanceTab />;
-  if (activeTab === "receipts") return <ReceiptsTab />;
+  if (activeTab === "receipts") {
+    return (
+      <ReceiptsTab
+        backendReceipts={context.backendReceipts}
+        backendTransactions={context.backendTransactions}
+        onBackendRefresh={context.onBackendRefresh}
+      />
+    );
+  }
   if (activeTab === "bookkeeping") return <BookkeepingTab />;
   if (activeTab === "vat") return <VatTab />;
   if (activeTab === "taxes") return <TaxesTab />;
@@ -2757,11 +3043,44 @@ function renderFinanceTab(
 
 export function FinancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const csvInputRef = useRef<HTMLInputElement | null>(null);
   const [backendImports, setBackendImports] = useState<FinanceImportBatchDto[]>([]);
   const [backendTransactions, setBackendTransactions] = useState<FinanceTransaction[]>([]);
+  const [backendReceipts, setBackendReceipts] = useState<FinanceReceiptDto[]>([]);
   const [backendRefreshKey, setBackendRefreshKey] = useState(0);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResultState, setImportResultState] = useState<FinanceImportResultDto | null>(null);
   const tabParam = searchParams.get("tab");
   const activeTab = financeTabs.some((tab) => tab.id === tabParam) ? (tabParam as FinanceTabId) : "overview";
+  const openFinanceTab = (tabId: FinanceTabId) => setSearchParams(tabId === "overview" ? {} : { tab: tabId });
+  const openCsvFilePicker = () => {
+    openFinanceTab("import");
+    window.setTimeout(() => csvInputRef.current?.click(), 0);
+  };
+
+  async function handleCsvImport(file: File | null | undefined) {
+    if (!file || isImporting) return;
+
+    openFinanceTab("import");
+    setIsImporting(true);
+    setImportError(null);
+
+    const result = await importRevolutCsv(file);
+
+    if (result.ok && result.data) {
+      setImportResultState(result.data);
+      setBackendRefreshKey((value) => value + 1);
+    } else {
+      setImportError(result.error ?? "CSV import failed.");
+    }
+
+    setIsImporting(false);
+
+    if (csvInputRef.current) {
+      csvInputRef.current.value = "";
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -2769,8 +3088,9 @@ export function FinancePage() {
     Promise.all([
       getFinanceImports(),
       getFinanceTransactions({ limit: 200 }),
+      getFinanceReceipts({ limit: 100, includeCandidates: true }),
     ])
-      .then(([importsResult, transactionsResult]) => {
+      .then(([importsResult, transactionsResult, receiptsResult]) => {
         if (!isMounted) return;
 
         if (importsResult.ok && importsResult.data) {
@@ -2779,6 +3099,10 @@ export function FinancePage() {
 
         if (transactionsResult.ok && transactionsResult.data) {
           setBackendTransactions(transactionsResult.data.transactions.map(mapBackendTransaction));
+        }
+
+        if (receiptsResult.ok && receiptsResult.data) {
+          setBackendReceipts(receiptsResult.data.receipts);
         }
       })
       .catch((error) => {
@@ -2795,8 +3119,17 @@ export function FinancePage() {
       eyebrow="KWSTUDIO FINANCE"
       title="Finance"
       description="CSV imports, invoices, expenses, VAT and bookkeeping support for KWStudio."
-      action={<FinanceQuickActionButtons />}
+      action={<FinanceQuickActionButtons onImportCsv={openCsvFilePicker} onOpenTab={openFinanceTab} />}
     >
+      <input
+        ref={csvInputRef}
+        className="sr-only"
+        type="file"
+        accept=".csv,text/csv"
+        disabled={isImporting}
+        onChange={(event) => void handleCsvImport(event.target.files?.[0])}
+      />
+
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-500 md:p-6">
         <div className="grid gap-4 xl:grid-cols-4">
           <p className="xl:col-span-2">{emptyStateCopy.demoOnly}</p>
@@ -2814,7 +3147,14 @@ export function FinancePage() {
       {renderFinanceTab(activeTab, {
         backendImports,
         backendTransactions,
+        backendReceipts,
         onBackendRefresh: () => setBackendRefreshKey((value) => value + 1),
+        onOpenTab: openFinanceTab,
+        importResultState,
+        importError,
+        isImporting,
+        onImportFile: (file) => void handleCsvImport(file),
+        onOpenFilePicker: openCsvFilePicker,
       })}
     </AdminShell>
   );
