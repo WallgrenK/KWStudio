@@ -10,15 +10,19 @@ import { useAdminAuth } from "~/hooks/useAdminAuth";
 import { isSupabaseConfigured } from "~/lib/supabase";
 
 type AdminShellProps = {
+  eyebrow?: string;
   title: string;
   description?: string;
+  action?: ReactNode;
   actionLabel?: string;
   children: ReactNode;
 };
 
 function AdminShellContent({
+  eyebrow,
   title,
   description,
+  action,
   actionLabel,
   children,
 }: AdminShellProps) {
@@ -65,14 +69,16 @@ function AdminShellContent({
 
         <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">
           <PageHeader
+            eyebrow={eyebrow}
             title={title}
             description={description}
             action={
-              actionLabel ? (
+              action ??
+              (actionLabel ? (
                 <button className="btn btn-primary" type="button">
                   {actionLabel}
                 </button>
-              ) : null
+              ) : null)
             }
           />
 

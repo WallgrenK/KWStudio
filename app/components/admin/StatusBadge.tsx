@@ -28,6 +28,11 @@ const toneByStatus: Record<AdminStatus, BadgeColor> = {
   Won: "success",
   Done: "success",
   Blocked: "error",
+  Review: "warning",
+  Ready: "primary",
+  Posted: "success",
+  "Missing receipt": "error",
+  Matched: "success",
 };
 
 export function Badge({

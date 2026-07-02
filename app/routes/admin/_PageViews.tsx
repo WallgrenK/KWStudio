@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
+import { ArrowRight, CheckCircle2, Plus, ReceiptText, Upload } from "lucide-react";
+import { AdminTabs as FinanceTabs } from "~/components/admin/AdminTabs";
 import { AdminShell } from "~/components/admin/AdminShell";
 import { AdminTable, type AdminTableColumn } from "~/components/admin/AdminTable";
 import { EmptyState } from "~/components/admin/EmptyState";
@@ -72,6 +74,49 @@ import {
   type Proposal,
   type WebsiteReport,
 } from "~/data/admin";
+import {
+  activityItems,
+  financeActions,
+  assets as financeAssets,
+  basAccountSuggestions,
+  bookkeepingChecklist,
+  cashFlow,
+  categoryRules,
+  backendInsights,
+  emptyStateCopy,
+  expenses as financeExpenses,
+  financeKpiGroups,
+  financeOverview,
+  financeQuickActions,
+  financeSettings,
+  financeTabs,
+  importMapping,
+  importPreviewRows,
+  importResult,
+  importStatus,
+  importSteps,
+  invoices as financeInvoices,
+  journalEntries,
+  receipts as financeReceipts,
+  reports as financeReports,
+  reportStatus,
+  supplierRules,
+  systemSuggestion,
+  financeHealth,
+  taxEstimate,
+  taxPocket,
+  transactions as financeTransactions,
+  vatSummary,
+  outstandingInvoices,
+  type FinanceAsset,
+  type FinanceExpense,
+  type FinanceInvoice,
+  type FinanceReceipt,
+  type FinanceReport,
+  type FinanceTabId,
+  type FinanceTransaction,
+  type JournalEntry,
+} from "~/data/finance";
 import { isSupabaseConfigured } from "~/lib/supabase";
 import {
   auditAllWebsites,
@@ -92,6 +137,14 @@ import {
   type LeadWithCompanyAndAudit,
   type LeadsResult,
 } from "~/services/leads";
+import {
+  getFinanceImports,
+  getFinanceTransactions,
+  importRevolutCsv,
+  type FinanceImportBatchDto,
+  type FinanceImportResultDto,
+  type FinanceTransactionDto,
+} from "~/services/financeApi";
 import { buildScbRequest, type ScbLeadFinderFilters } from "~/services/scbMapper";
 
 const leadColumns: Array<AdminTableColumn<AdminLead>> = [
@@ -1859,34 +1912,910 @@ export function ExpensesPage() {
   return <AdminShell title="Expenses" description="A simple expense tracker grouped by business category."><AdminTable columns={columns} rows={expenses} getRowKey={(expense) => expense.id} /></AdminShell>;
 }
 
-export function FinancePage() {
+function FinanceKpiGrid({ metrics }: { metrics: Array<{ label: string; value: string; detail: string }> }) {
   return (
-    <AdminShell title="Finance" description="A hub for invoices, payments, expenses and bookkeeping workflows.">
-      <MetricGrid metrics={financeMetrics} />
-      <WorkflowCards
-        cards={[
-          { title: "Invoices", description: "Track paid, unpaid and overdue client invoices.", href: "/admin/invoices" },
-          { title: "Payments", description: "Review recent payment activity and collection channels.", href: "/admin/payments" },
-          { title: "Expenses", description: "Keep software, hosting and operating costs organized.", href: "/admin/expenses" },
-          { title: "Taxes / VAT", description: "VAT reporting and tax preparation workflow will live here.", status: "Coming soon" },
-          { title: "Bookkeeping", description: "Run the monthly document and reconciliation checklist.", href: "/admin/bookkeeping" },
-        ]}
-      />
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-800">Recent invoices</h2>
-            <Link className="text-sm font-medium text-[#2E75BD]" to="/admin/invoices">View all</Link>
-          </div>
-          <AdminTable columns={invoiceColumns} rows={invoices} getRowKey={(invoice) => invoice.id} />
+    <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {metrics.map((metric) => (
+        <MiniMetricCard key={metric.label} label={metric.label} value={metric.value} detail={metric.detail} />
+      ))}
+    </div>
+  );
+}
+
+function FinancePanel({ title, children, description }: { title: string; children: ReactNode; description?: string }) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 md:p-6">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
+        {description ? <p className="mt-2 text-sm leading-6 text-gray-500">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function FinanceDefinitionList({ rows }: { rows: Array<{ label: string; value: string }> }) {
+  return (
+    <div className="divide-y divide-gray-100">
+      {rows.map((row) => (
+        <div key={row.label} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-sm text-gray-500">{row.label}</span>
+          <strong className="text-sm font-semibold text-gray-800">{row.value}</strong>
         </div>
-        <div className="grid gap-6">
-          <Timeline title="Finance activity" items={financeActivity} />
-          <Panel title="VAT reminder">
-            <p className="text-sm leading-6 text-gray-500">Prepare June invoice exports and software expense receipts before the next bookkeeping review.</p>
-          </Panel>
+      ))}
+    </div>
+  );
+}
+
+function FinanceQuickActionButtons() {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {financeQuickActions.map((action) => {
+        const Icon = action.icon;
+
+        return (
+          <button
+            key={action.label}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
+            type="button"
+          >
+            <Icon className="size-4" aria-hidden="true" />
+            {action.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function financeStatus(status: FinanceTransaction["status"]) {
+  if (status === "review") return "Review";
+  if (status === "ready") return "Ready";
+  return "Posted";
+}
+
+function receiptStatus(status: FinanceTransaction["receiptStatus"]) {
+  if (status === "matched") return "Matched";
+  if (status === "missing") return "Missing receipt";
+  if (status === "not_required") return "Ready";
+  return "Review";
+}
+
+function toNumber(value: number | string | null | undefined) {
+  const parsed = typeof value === "number" ? value : Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mapBackendTransaction(transaction: FinanceTransactionDto): FinanceTransaction {
+  const status = transaction.status === "posted" ? "posted" : transaction.status === "ready" ? "ready" : "review";
+  const receipt = transaction.receipt_status === "matched"
+    ? "matched"
+    : transaction.receipt_status === "not_required"
+      ? "not_required"
+      : transaction.receipt_status === "needs_review"
+        ? "needs_review"
+        : "missing";
+
+  return {
+    id: transaction.id,
+    source: transaction.source === "manual" ? "manual" : "revolut_csv",
+    externalId: transaction.external_id,
+    transactionType: transaction.transaction_type === "income" || transaction.transaction_type === "transfer" || transaction.transaction_type === "unknown"
+      ? transaction.transaction_type
+      : "expense",
+    bookingDate: transaction.booking_date?.slice(0, 10) ?? "-",
+    paymentDate: transaction.payment_date?.slice(0, 10) ?? "-",
+    description: transaction.description,
+    grossAmount: toNumber(transaction.gross_amount),
+    fee: toNumber(transaction.fee),
+    currency: transaction.currency === "EUR" || transaction.currency === "USD" ? transaction.currency : "SEK",
+    category: transaction.category ?? "Uncategorized",
+    basAccount: transaction.bas_account ?? "-",
+    vatRate: toNumber(transaction.vat_rate),
+    vatAmount: toNumber(transaction.vat_amount),
+    receiptStatus: receipt,
+    aiConfidence: status === "review" ? 0 : 100,
+    status,
+  };
+}
+
+function formatFinanceAmount(amount: number, currency = "SEK") {
+  const formatted = Math.abs(amount).toLocaleString("sv-SE", {
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  });
+
+  return `${amount < 0 ? "-" : "+"}${formatted} ${currency}`;
+}
+
+function OverviewTab({
+  backendImports,
+  backendTransactions,
+}: {
+  backendImports: FinanceImportBatchDto[];
+  backendTransactions: FinanceTransaction[];
+}) {
+  const [, setSearchParams] = useSearchParams();
+  const openTab = (tabId: string) => setSearchParams({ tab: tabId });
+  const latestImport = backendImports[0];
+  const reviewCount = backendTransactions.length > 0
+    ? backendTransactions.filter((transaction) => transaction.status === "review").length
+    : 3;
+  const missingReceiptCount = backendTransactions.length > 0
+    ? backendTransactions.filter((transaction) => transaction.receiptStatus === "missing").length
+    : 2;
+  const readyCount = backendTransactions.length > 0
+    ? backendTransactions.filter((transaction) => transaction.status === "ready").length
+    : 39;
+  const dynamicActions = financeActions.map((item) => {
+    if (item.id === "act-001") return { ...item, title: `${reviewCount} transactions need review` };
+    if (item.id === "act-002") return { ...item, title: `${missingReceiptCount} receipts missing` };
+    return item;
+  });
+  const dynamicImportStatus = latestImport
+    ? [
+        { label: "Last Revolut CSV import", value: new Date(latestImport.created_at).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }), detail: latestImport.filename ?? "Uploaded CSV" },
+        { label: "Rows imported", value: String(latestImport.total_rows), detail: "Rows accepted from CSV" },
+        { label: "Categorized", value: String(latestImport.categorized_rows), detail: "Matched by backend-ready rules" },
+        { label: "Need review", value: String(latestImport.review_rows), detail: "Awaiting approval" },
+      ]
+    : importStatus;
+  const categorizedRows = latestImport?.categorized_rows ?? readyCount;
+  const totalRows = latestImport?.total_rows ?? 42;
+  const categorizedProgress = totalRows > 0 ? Math.round((categorizedRows / totalRows) * 100) : 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {financeOverview.map((metric) => {
+          const Icon = metric.icon;
+
+          return (
+            <button
+              key={metric.label}
+              className="group rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-[#2E75BD] hover:shadow-theme-xs md:p-6"
+              type="button"
+              onClick={() => metric.targetTab ? openTab(metric.targetTab) : undefined}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-sm font-medium text-gray-500">{metric.label}</span>
+                  <strong className="mt-2 block text-2xl font-bold text-gray-800">{metric.value}</strong>
+                </div>
+                {Icon ? (
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition group-hover:bg-[#eff6ff]">
+                    <Icon className="size-5 text-gray-700 group-hover:text-[#2E75BD]" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm leading-6 text-gray-500">{metric.detail}</p>
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]">
+                View <ArrowRight className="size-4" aria-hidden="true" />
+              </span>
+            </button>
+          );
+        })}
+
+        <button
+          className="group rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-[#2E75BD] hover:shadow-theme-xs md:p-6"
+          type="button"
+          onClick={() => openTab(taxPocket.targetTab)}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className="text-sm font-medium text-gray-500">Tax pocket target</span>
+              <strong className="mt-2 block text-2xl font-bold text-gray-800">{taxPocket.current}</strong>
+            </div>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition group-hover:bg-[#eff6ff]">
+              <ReceiptText className="size-5 text-gray-700 group-hover:text-[#2E75BD]" aria-hidden="true" />
+            </span>
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between text-xs font-medium text-gray-500">
+              <span>Current: {taxPocket.current}</span>
+              <span>Target: {taxPocket.target}</span>
+            </div>
+            <div className="h-2 rounded-full bg-gray-100">
+              <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${taxPocket.progress}%` }} />
+            </div>
+            <p className="text-sm leading-6 text-gray-500">Missing: {taxPocket.missing}</p>
+          </div>
+          <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]">
+            View <ArrowRight className="size-4" aria-hidden="true" />
+          </span>
+        </button>
+      </div>
+
+      <FinancePanel title="Action Center" description="Practical bookkeeping tasks for the current period.">
+        <div className="grid gap-3 xl:grid-cols-5">
+          {dynamicActions.map((item) => (
+            <div key={item.id} className="flex h-full flex-col justify-between rounded-xl border border-gray-100 p-4">
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-gray-800">{item.title}</h3>
+                  <StatusBadge status={item.status} />
+                </div>
+                <p className="mt-2 text-sm leading-6 text-gray-500">{item.detail}</p>
+              </div>
+              <button
+                className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]"
+                type="button"
+                onClick={() => openTab(item.targetTab)}
+              >
+                {item.actionLabel}
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </FinancePanel>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <FinancePanel title="Finance Health">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+            <div className="lg:w-48">
+              <span className="text-sm font-medium text-gray-500">{financeHealth.label}</span>
+              <strong className="mt-2 block text-4xl font-bold text-gray-800">{financeHealth.score}</strong>
+              <div className="mt-4 h-2 rounded-full bg-gray-100">
+                <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${financeHealth.progress}%` }} />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm leading-6 text-gray-500">{financeHealth.summary}</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {financeHealth.breakdown.map((item) => (
+                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+                    <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                    <StatusBadge status={item.status} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </FinancePanel>
+
+        <FinancePanel title="Import status">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {dynamicImportStatus.map((item) => (
+              <div key={item.label} className="rounded-xl bg-gray-50 p-3">
+                <span className="text-xs font-medium text-gray-500">{item.label}</span>
+                <strong className="mt-1 block text-lg text-gray-800">{item.value}</strong>
+                <p className="mt-1 text-xs text-gray-500">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between text-xs font-medium text-gray-500">
+              <span>{categorizedRows} / {totalRows} categorized</span>
+              <span>Calculated from latest CSV import</span>
+            </div>
+            <div className="h-2 rounded-full bg-gray-100">
+              <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${categorizedProgress}%` }} />
+            </div>
+            <p className="mt-3 text-xs font-medium text-gray-500">Backend-ready demo metric.</p>
+          </div>
+        </FinancePanel>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <FinancePanel title="Cash flow" description="Demo movement for the current month.">
+          <div className="space-y-3">
+            {cashFlow.map((item) => (
+              <div key={item.label} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">{item.label}</h3>
+                    <p className="mt-1 text-sm leading-6 text-gray-500">{item.detail}</p>
+                  </div>
+                  <strong className="text-sm text-gray-800">{item.value}</strong>
+                </div>
+                <div className="mt-3 h-2 rounded-full bg-gray-100">
+                  <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${item.percent}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </FinancePanel>
+
+        <FinancePanel title="Backend insights" description="Calculated demo metrics from transaction history and latest import.">
+          <div className="space-y-3">
+            {backendInsights.map((insight) => (
+              <div key={insight} className="flex gap-3 rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-700">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#2E75BD]" aria-hidden="true" />
+                <span>{insight}</span>
+              </div>
+            ))}
+          </div>
+        </FinancePanel>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <FinancePanel title="Outstanding invoices">
+          <div className="space-y-3">
+            {outstandingInvoices.map((invoice) => (
+              <div key={invoice.id} className="flex flex-col gap-2 rounded-xl border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">{invoice.client}</h3>
+                  <p className="mt-1 text-sm text-gray-500">{invoice.amount} - {invoice.due}</p>
+                </div>
+                <StatusBadge status={invoice.status} />
+              </div>
+            ))}
+          </div>
+          <button className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => openTab("invoices")}>
+            View invoices
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </button>
+        </FinancePanel>
+        <div className="xl:col-span-2">
+          <Timeline title="Recent finance activity" items={activityItems.map((item) => ({ ...item, status: "Done" }))} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function ImportTab({
+  backendImports,
+  onBackendRefresh,
+}: {
+  backendImports: FinanceImportBatchDto[];
+  onBackendRefresh: () => void;
+}) {
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [backendResult, setBackendResult] = useState<FinanceImportResultDto | null>(null);
+
+  async function handleFile(file: File | null | undefined) {
+    if (!file) return;
+
+    setIsImporting(true);
+    setImportError(null);
+
+    const result = await importRevolutCsv(file);
+
+    if (result.ok && result.data) {
+      setBackendResult(result.data);
+      onBackendRefresh();
+    } else {
+      setImportError(result.error ?? "CSV import failed.");
+    }
+
+    setIsImporting(false);
+  }
+
+  const resultRows = backendResult
+    ? [
+        { label: "Rows detected", value: String(backendResult.totalRows) },
+        { label: "Imported rows", value: String(backendResult.importedRows) },
+        { label: "Duplicates skipped", value: String(backendResult.duplicateRows) },
+        { label: "Skipped rows", value: String(backendResult.skippedRows) },
+        { label: "Categorized", value: String(backendResult.categorizedRows) },
+        { label: "Need review", value: String(backendResult.reviewRows) },
+      ]
+    : importResult;
+  const columns: Array<AdminTableColumn<(typeof importPreviewRows)[number]>> = [
+    { key: "typ", header: "Typ", render: (row) => row.typ },
+    { key: "produkt", header: "Produkt", render: (row) => row.produkt },
+    { key: "startdatum", header: "Startdatum", render: (row) => row.startdatum },
+    { key: "slutförtDatum", header: "Slutfört datum", render: (row) => row.slutförtDatum },
+    { key: "beskrivning", header: "Beskrivning", render: (row) => <strong className="text-gray-800">{row.beskrivning}</strong> },
+    { key: "belopp", header: "Belopp", render: (row) => row.belopp },
+    { key: "avgift", header: "Avgift", render: (row) => row.avgift },
+    { key: "valuta", header: "Valuta", render: (row) => row.valuta },
+    { key: "state", header: "State", render: (row) => row.state },
+    { key: "saldo", header: "Saldo", render: (row) => row.saldo },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+        <FinancePanel title="CSV Import Wizard" description={emptyStateCopy.csv}>
+          <label
+            className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[#2E75BD]/40 bg-[#eff6ff] p-6 text-center transition hover:border-[#2E75BD]"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              void handleFile(event.dataTransfer.files[0]);
+            }}
+          >
+            <Upload className="size-10 text-[#2E75BD]" aria-hidden="true" />
+            <h3 className="mt-4 text-lg font-semibold text-gray-800">Drop Revolut CSV here</h3>
+            <p className="mt-2 text-sm text-gray-500">Accepted format: .csv</p>
+            <p className="mt-1 text-sm font-medium text-gray-700">Demo filename: revolut-pro-transactions-july.csv</p>
+            <span className="btn btn-primary mt-5">{isImporting ? "Importing..." : "Select CSV file"}</span>
+            <input
+              className="sr-only"
+              type="file"
+              accept=".csv,text/csv"
+              disabled={isImporting}
+              onChange={(event) => void handleFile(event.target.files?.[0])}
+            />
+          </label>
+          {importError ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{importError}</p> : null}
+          {backendResult ? (
+            <p className="mt-4 rounded-xl bg-green-50 p-3 text-sm font-medium text-green-700">
+              CSV import completed. Batch ID: {backendResult.batchId}
+            </p>
+          ) : null}
+        </FinancePanel>
+
+        <FinancePanel title="Import result">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {resultRows.map((item) => (
+              <div key={item.label} className="rounded-xl border border-gray-100 p-3">
+                <span className="text-sm text-gray-500">{item.label}</span>
+                <strong className="mt-1 block text-2xl text-gray-800">{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </FinancePanel>
+      </div>
+
+      <FinancePanel title="Wizard steps">
+        <div className="grid gap-3 md:grid-cols-3">
+          {importSteps.map((step, index) => (
+            <div key={step} className="rounded-xl border border-gray-100 p-4">
+              <span className="flex size-8 items-center justify-center rounded-full bg-[#eff6ff] text-sm font-semibold text-[#2E75BD]">{index + 1}</span>
+              <h3 className="mt-3 text-sm font-semibold text-gray-800">{step}</h3>
+            </div>
+          ))}
+        </div>
+      </FinancePanel>
+
+      {backendImports.length > 0 ? (
+        <FinancePanel title="Import history" description="Latest backend import batches.">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {backendImports.slice(0, 6).map((item) => (
+              <div key={item.id} className="rounded-xl border border-gray-100 p-4">
+                <h3 className="text-sm font-semibold text-gray-800">{item.filename ?? "Revolut CSV"}</h3>
+                <p className="mt-1 text-xs font-medium text-gray-500">{new Date(item.created_at).toLocaleString()}</p>
+                <p className="mt-3 text-sm text-gray-500">
+                  {item.imported_rows} imported, {item.duplicate_rows} duplicates, {item.review_rows} review.
+                </p>
+              </div>
+            ))}
+          </div>
+        </FinancePanel>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[1fr_0.7fr]">
+        <div>
+          <h2 className="mb-4 text-lg font-semibold text-gray-800">Revolut CSV preview</h2>
+          <AdminTable columns={columns} rows={importPreviewRows} getRowKey={(row) => row.id} />
+        </div>
+        <FinancePanel title="Internal mapping">
+          <FinanceDefinitionList rows={importMapping.map((item) => ({ label: item.source, value: item.target }))} />
+        </FinancePanel>
+      </div>
+    </div>
+  );
+}
+
+function TransactionsTab({ backendTransactions }: { backendTransactions: FinanceTransaction[] }) {
+  const [filter, setFilter] = useState("all");
+  const rows = backendTransactions.length > 0 ? backendTransactions : financeTransactions;
+  const filteredRows = rows.filter((transaction) => {
+    if (filter === "all") return true;
+    if (filter === "missing_receipt") return transaction.receiptStatus === "missing";
+    return transaction.status === filter;
+  });
+  const reviewTransaction = rows.find((transaction) => transaction.status === "review");
+  const columns: Array<AdminTableColumn<FinanceTransaction>> = [
+    { key: "date", header: "Date", render: (transaction) => transaction.bookingDate },
+    { key: "description", header: "Description", render: (transaction) => <strong className="text-gray-800">{transaction.description}</strong> },
+    { key: "type", header: "Type", render: (transaction) => transaction.transactionType },
+    { key: "amount", header: "Amount", render: (transaction) => formatFinanceAmount(transaction.grossAmount, transaction.currency) },
+    { key: "category", header: "Category", render: (transaction) => transaction.category },
+    { key: "bas", header: "BAS account", render: (transaction) => transaction.basAccount },
+    { key: "vat", header: "VAT", render: (transaction) => `${transaction.vatRate}%` },
+    { key: "receipt", header: "Receipt", render: (transaction) => <StatusBadge status={receiptStatus(transaction.receiptStatus)} /> },
+    { key: "confidence", header: "Confidence", render: (transaction) => `${transaction.aiConfidence}%` },
+    { key: "status", header: "Status", render: (transaction) => <StatusBadge status={financeStatus(transaction.status)} /> },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <FinanceKpiGrid metrics={financeKpiGroups.transactions} />
+      <FilterBar
+        filters={[{
+          label: "Status",
+          value: filter,
+          options: [
+            { label: "All", value: "all" },
+            { label: "Needs review", value: "review" },
+            { label: "Missing receipt", value: "missing_receipt" },
+            { label: "Ready", value: "ready" },
+            { label: "Posted", value: "posted" },
+          ],
+          onChange: setFilter,
+        }]}
+      />
+      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+        <AdminTable columns={columns} rows={filteredRows} getRowKey={(transaction) => transaction.id} />
+        <FinancePanel title="System suggestion" description={reviewTransaction ? `Reviewing ${reviewTransaction.description}` : "No transaction selected."}>
+          <FinanceDefinitionList
+            rows={[
+              { label: "Suggested category", value: systemSuggestion.suggestedCategory },
+              { label: "Suggested BAS account", value: systemSuggestion.suggestedBasAccount },
+              { label: "Suggested VAT rate", value: systemSuggestion.suggestedVatRate },
+              { label: "Confidence", value: systemSuggestion.confidence },
+            ]}
+          />
+          <div className="mt-5 grid gap-2">
+            {["Approve", "Change", "Mark private"].map((label) => (
+              <button key={label} className={label === "Approve" ? "btn btn-primary" : "btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"} type="button">
+                {label}
+              </button>
+            ))}
+          </div>
+        </FinancePanel>
+      </div>
+    </div>
+  );
+}
+
+function InvoicesFinanceTab() {
+  const columns: Array<AdminTableColumn<FinanceInvoice>> = [
+    { key: "invoice", header: "Invoice", render: (invoice) => <strong className="text-gray-800">{invoice.id}</strong> },
+    { key: "client", header: "Client", render: (invoice) => invoice.client },
+    { key: "project", header: "Project", render: (invoice) => invoice.project },
+    { key: "amount", header: "Amount", render: (invoice) => invoice.amount },
+    { key: "vat", header: "VAT", render: (invoice) => invoice.vat },
+    { key: "due", header: "Due date", render: (invoice) => invoice.dueDate },
+    { key: "status", header: "Status", render: (invoice) => <StatusBadge status={invoice.status} /> },
+    { key: "matched", header: "Matched payment", render: (invoice) => invoice.matchedPayment },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <FinanceKpiGrid metrics={financeKpiGroups.invoices} />
+      <AdminTable columns={columns} rows={financeInvoices} getRowKey={(invoice) => invoice.id} />
+      <FinancePanel title="Manual Revolut workflow">
+        <div className="grid gap-3 md:grid-cols-4">
+          {["Create invoice in Revolut Pro", "Register invoice here", "Mark as paid when payment arrives", "Match with CSV transaction at month end"].map((item, index) => (
+            <div key={item} className="rounded-xl border border-gray-100 p-4">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[#2E75BD]">Step {index + 1}</span>
+              <p className="mt-2 text-sm font-medium leading-6 text-gray-700">{item}</p>
+            </div>
+          ))}
+        </div>
+      </FinancePanel>
+    </div>
+  );
+}
+
+function ExpensesFinanceTab() {
+  const columns: Array<AdminTableColumn<FinanceExpense>> = [
+    { key: "supplier", header: "Supplier", render: (expense) => <strong className="text-gray-800">{expense.supplier}</strong> },
+    { key: "date", header: "Date", render: (expense) => expense.date },
+    { key: "amount", header: "Amount", render: (expense) => expense.amount },
+    { key: "category", header: "Category", render: (expense) => expense.category },
+    { key: "bas", header: "BAS account", render: (expense) => expense.basAccount },
+    { key: "vat", header: "VAT", render: (expense) => expense.vat },
+    { key: "receipt", header: "Receipt", render: (expense) => expense.receipt },
+    { key: "status", header: "Status", render: (expense) => <StatusBadge status={expense.status} /> },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <FinanceKpiGrid metrics={financeKpiGroups.expenses} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {supplierRules.map((rule) => (
+          <FinancePanel key={rule.supplier} title={rule.supplier}>
+            <FinanceDefinitionList
+              rows={[
+                { label: "Category", value: rule.category },
+                { label: "BAS account", value: rule.account },
+                { label: "VAT", value: rule.vat },
+              ]}
+            />
+          </FinancePanel>
+        ))}
+      </div>
+      <AdminTable columns={columns} rows={financeExpenses} getRowKey={(expense) => expense.id} />
+    </div>
+  );
+}
+
+function ReceiptsTab() {
+  const columns: Array<AdminTableColumn<FinanceReceipt>> = [
+    { key: "filename", header: "Filename", render: (receipt) => <strong className="text-gray-800">{receipt.filename}</strong> },
+    { key: "supplier", header: "Supplier", render: (receipt) => receipt.supplier },
+    { key: "date", header: "Date", render: (receipt) => receipt.date },
+    { key: "amount", header: "Amount", render: (receipt) => receipt.amount },
+    { key: "vat", header: "VAT", render: (receipt) => receipt.vat },
+    { key: "matched", header: "Matched transaction", render: (receipt) => receipt.matchedTransaction },
+    { key: "status", header: "Status", render: (receipt) => <StatusBadge status={receipt.status} /> },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <FinancePanel title="Receipt upload" description="Upload PDF, JPG or PNG receipt. The demo extractor reads supplier, date, total amount and VAT, then matches it to a transaction.">
+        <div className="flex min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+          <ReceiptText className="size-10 text-[#2E75BD]" aria-hidden="true" />
+          <h3 className="mt-4 text-lg font-semibold text-gray-800">Upload PDF, JPG or PNG receipt</h3>
+          <button className="btn btn-primary mt-5" type="button">Upload receipt</button>
+        </div>
+      </FinancePanel>
+      <FinanceKpiGrid metrics={financeKpiGroups.receipts} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {financeReceipts.map((receipt) => (
+          <FinancePanel key={receipt.id} title={receipt.filename}>
+            <p className="text-sm text-gray-500">{receipt.supplier} - {receipt.amount}</p>
+            <div className="mt-4"><StatusBadge status={receipt.status} /></div>
+          </FinancePanel>
+        ))}
+      </div>
+      <AdminTable columns={columns} rows={financeReceipts} getRowKey={(receipt) => receipt.id} />
+    </div>
+  );
+}
+
+function BookkeepingTab() {
+  const columns: Array<AdminTableColumn<JournalEntry>> = [
+    { key: "verification", header: "Verification no.", render: (entry) => <strong className="text-gray-800">{entry.verificationNo}</strong> },
+    { key: "date", header: "Date", render: (entry) => entry.date },
+    { key: "description", header: "Description", render: (entry) => entry.description },
+    { key: "debit", header: "Debit account", render: (entry) => entry.debitAccount },
+    { key: "credit", header: "Credit account", render: (entry) => entry.creditAccount },
+    { key: "amount", header: "Amount", render: (entry) => entry.amount },
+    { key: "status", header: "Status", render: (entry) => <StatusBadge status={entry.status} /> },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <FinanceKpiGrid metrics={financeKpiGroups.bookkeeping} />
+      <div className="grid gap-6 xl:grid-cols-[1fr_0.7fr]">
+        <TaskList items={bookkeepingChecklist} />
+        <FinancePanel title="BAS account suggestions">
+          <div className="space-y-2">
+            {basAccountSuggestions.map((account) => (
+              <div key={account} className="rounded-xl bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">{account}</div>
+            ))}
+          </div>
+        </FinancePanel>
+      </div>
+      <AdminTable columns={columns} rows={journalEntries} getRowKey={(entry) => entry.id} />
+    </div>
+  );
+}
+
+function VatTab() {
+  return (
+    <div className="space-y-6">
+      <FinanceKpiGrid metrics={vatSummary.metrics} />
+      <div className="grid gap-6 xl:grid-cols-2">
+        <FinancePanel title="VAT summary">
+          <FinanceDefinitionList rows={vatSummary.rows} />
+          <button className="btn btn-primary mt-5" type="button">Generate VAT report</button>
+        </FinancePanel>
+        <FinancePanel title="Skatteverket boxes" description="Demo mapping only. Review before using outside KWStudio Admin.">
+          <div className="space-y-3">
+            {vatSummary.boxes.map((box) => (
+              <div key={box.box} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">{box.box}</h3>
+                    <p className="mt-1 text-sm leading-6 text-gray-500">{box.description}</p>
+                  </div>
+                  <strong className="text-sm text-gray-800">{box.value}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        </FinancePanel>
+      </div>
+      <FinancePanel title="Status">
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge status="Draft" />
+          <StatusBadge status="Ready" />
+          <StatusBadge status="Pending" />
+        </div>
+        <p className="mt-4 text-sm leading-6 text-gray-500">Draft. Ready for review. Not submitted.</p>
+      </FinancePanel>
+    </div>
+  );
+}
+
+function TaxesTab() {
+  const columns: Array<AdminTableColumn<(typeof taxEstimate.monthlyPlan)[number]>> = [
+    { key: "month", header: "Month", render: (row) => <strong className="text-gray-800">{row.month}</strong> },
+    { key: "amount", header: "Suggested reserve", render: (row) => row.amount },
+    { key: "status", header: "Status", render: (row) => <StatusBadge status={row.status === "reserved" ? "Paid" : row.status === "behind" ? "Overdue" : "Scheduled"} /> },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-800">{taxEstimate.disclaimer}</div>
+      <FinanceKpiGrid metrics={taxEstimate.metrics} />
+      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+        <FinancePanel title="Calculation">
+          <FinanceDefinitionList rows={taxEstimate.calculation} />
+        </FinancePanel>
+        <div>
+          <h2 className="mb-4 text-lg font-semibold text-gray-800">Monthly reserve plan</h2>
+          <AdminTable columns={columns} rows={taxEstimate.monthlyPlan} getRowKey={(row) => row.month} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssetsTab() {
+  const columns: Array<AdminTableColumn<FinanceAsset>> = [
+    { key: "asset", header: "Asset", render: (asset) => <strong className="text-gray-800">{asset.asset}</strong> },
+    { key: "purchaseDate", header: "Purchase date", render: (asset) => asset.purchaseDate },
+    { key: "purchaseAmount", header: "Purchase amount", render: (asset) => asset.purchaseAmount },
+    { key: "category", header: "Category", render: (asset) => asset.category },
+    { key: "period", header: "Depreciation period", render: (asset) => asset.depreciationPeriod },
+    { key: "depreciation", header: "This year depreciation", render: (asset) => asset.thisYearDepreciation },
+    { key: "bookValue", header: "Book value", render: (asset) => asset.bookValue },
+    { key: "status", header: "Status", render: (asset) => <StatusBadge status={asset.status} /> },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <FinanceKpiGrid metrics={financeKpiGroups.assets} />
+      <AdminTable columns={columns} rows={financeAssets} getRowKey={(asset) => asset.id} />
+      <FinancePanel title="Add asset" description="Depreciation is demo only in this frontend version.">
+        <button className="btn btn-primary" type="button">
+          <Plus className="mr-2 size-4" aria-hidden="true" />
+          Add asset
+        </button>
+      </FinancePanel>
+    </div>
+  );
+}
+
+function ReportsTab() {
+  return (
+    <div className="space-y-6">
+      <FinancePanel title="Current period status">
+        <FinanceDefinitionList
+          rows={[
+            { label: "Current period", value: reportStatus.currentPeriod },
+            { label: "Reports ready", value: reportStatus.reportsReady },
+            { label: "Missing data", value: reportStatus.missingData },
+          ]}
+        />
+      </FinancePanel>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {financeReports.map((report: FinanceReport) => {
+          const Icon = report.icon;
+
+          return (
+            <FinancePanel key={report.id} title={report.title}>
+              <Icon className="size-6 text-[#2E75BD]" aria-hidden="true" />
+              <p className="mt-3 text-sm leading-6 text-gray-500">{report.description}</p>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <StatusBadge status={report.status} />
+                <button className="text-sm font-semibold text-[#2E75BD]" type="button">{report.action}</button>
+              </div>
+            </FinancePanel>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SettingsTab() {
+  const sections = [
+    { title: "Business profile", rows: financeSettings.businessProfile },
+    { title: "Import settings", rows: financeSettings.importSettings },
+    { title: "VAT settings", rows: financeSettings.vatSettings },
+    { title: "Tax reserve settings", rows: financeSettings.taxReserveSettings },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-2">
+        {sections.map((section) => (
+          <FinancePanel key={section.title} title={section.title}>
+            <FinanceDefinitionList rows={section.rows} />
+          </FinancePanel>
+        ))}
+      </div>
+      <FinancePanel title="Category rules">
+        <div className="grid gap-3 md:grid-cols-3">
+          {categoryRules.map((rule) => (
+            <div key={rule.supplier} className="rounded-xl border border-gray-100 p-4">
+              <h3 className="text-sm font-semibold text-gray-800">{rule.supplier}</h3>
+              <p className="mt-2 text-sm leading-6 text-gray-500">{rule.category} - {rule.basAccount} - {rule.vat}</p>
+            </div>
+          ))}
+        </div>
+      </FinancePanel>
+    </div>
+  );
+}
+
+function renderFinanceTab(
+  activeTab: FinanceTabId,
+  context: {
+    backendImports: FinanceImportBatchDto[];
+    backendTransactions: FinanceTransaction[];
+    onBackendRefresh: () => void;
+  },
+) {
+  if (activeTab === "import") {
+    return <ImportTab backendImports={context.backendImports} onBackendRefresh={context.onBackendRefresh} />;
+  }
+  if (activeTab === "transactions") return <TransactionsTab backendTransactions={context.backendTransactions} />;
+  if (activeTab === "invoices") return <InvoicesFinanceTab />;
+  if (activeTab === "expenses") return <ExpensesFinanceTab />;
+  if (activeTab === "receipts") return <ReceiptsTab />;
+  if (activeTab === "bookkeeping") return <BookkeepingTab />;
+  if (activeTab === "vat") return <VatTab />;
+  if (activeTab === "taxes") return <TaxesTab />;
+  if (activeTab === "assets") return <AssetsTab />;
+  if (activeTab === "reports") return <ReportsTab />;
+  if (activeTab === "settings") return <SettingsTab />;
+  return <OverviewTab backendImports={context.backendImports} backendTransactions={context.backendTransactions} />;
+}
+
+export function FinancePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [backendImports, setBackendImports] = useState<FinanceImportBatchDto[]>([]);
+  const [backendTransactions, setBackendTransactions] = useState<FinanceTransaction[]>([]);
+  const [backendRefreshKey, setBackendRefreshKey] = useState(0);
+  const tabParam = searchParams.get("tab");
+  const activeTab = financeTabs.some((tab) => tab.id === tabParam) ? (tabParam as FinanceTabId) : "overview";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([
+      getFinanceImports(),
+      getFinanceTransactions({ limit: 200 }),
+    ])
+      .then(([importsResult, transactionsResult]) => {
+        if (!isMounted) return;
+
+        if (importsResult.ok && importsResult.data) {
+          setBackendImports(importsResult.data.imports);
+        }
+
+        if (transactionsResult.ok && transactionsResult.data) {
+          setBackendTransactions(transactionsResult.data.transactions.map(mapBackendTransaction));
+        }
+      })
+      .catch((error) => {
+        console.warn("Could not load backend finance data. Demo fallback remains active.", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [backendRefreshKey]);
+
+  return (
+    <AdminShell
+      eyebrow="KWSTUDIO FINANCE"
+      title="Finance"
+      description="CSV imports, invoices, expenses, VAT and bookkeeping support for KWStudio."
+      action={<FinanceQuickActionButtons />}
+    >
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-500 md:p-6">
+        <div className="grid gap-4 xl:grid-cols-4">
+          <p className="xl:col-span-2">{emptyStateCopy.demoOnly}</p>
+          <p>{emptyStateCopy.csv}</p>
+          <p>{emptyStateCopy.tax}</p>
+        </div>
+      </div>
+
+      <FinanceTabs
+        tabs={financeTabs}
+        activeTab={activeTab}
+        onChange={(tabId) => setSearchParams(tabId === "overview" ? {} : { tab: tabId })}
+      />
+
+      {renderFinanceTab(activeTab, {
+        backendImports,
+        backendTransactions,
+        onBackendRefresh: () => setBackendRefreshKey((value) => value + 1),
+      })}
     </AdminShell>
   );
 }

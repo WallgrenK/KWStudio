@@ -27,7 +27,12 @@ export type AdminStatus =
   | "Live"
   | "Won"
   | "Done"
-  | "Blocked";
+  | "Blocked"
+  | "Review"
+  | "Ready"
+  | "Posted"
+  | "Missing receipt"
+  | "Matched";
 
 export type AdminStat = {
   label: string;
