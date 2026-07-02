@@ -2710,7 +2710,9 @@ function ReceiptsTab({
             </div>
           </div>
         </div>
-        {receiptError ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{receiptError}</p> : null}
+        {receiptError ? (
+          <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{receiptError}</pre>
+        ) : null}
       </FinancePanel>
 
       <FinanceKpiGrid metrics={financeKpiGroups.receipts} />

@@ -150,12 +150,12 @@ async function requestFinanceApi<T>(path: string, init: RequestInit = {}): Promi
     const data = await response.json().catch(() => null) as T | { error?: string; message?: string } | null;
 
     if (!response.ok) {
+      const backendError = data && typeof data === "object" ? JSON.stringify(data, null, 2) : null;
+
       return {
         ok: false,
         status: response.status,
-        error: data && typeof data === "object" && ("message" in data || "error" in data)
-          ? data.message ?? data.error
-          : `Finance API request failed with ${response.status}.`,
+        error: backendError ?? `Finance API request failed with ${response.status}.`,
       };
     }
 
