@@ -3828,9 +3828,16 @@ function VatTab() {
   const [vatError, setVatError] = useState<string | null>(null);
 
   const yearNumber = Number.parseInt(year, 10);
-  const selectedPeriod = report?.period ?? periods.find((period) => period.period.id === selectedPeriodId)?.period ?? null;
+  const selectedPeriodRow = periods.find((period) => period.period.id === selectedPeriodId) ?? null;
+  const selectedPeriod = selectedPeriodRow?.period ?? report?.period ?? null;
   const periodStatus: VatPeriodStatus = selectedPeriod?.status ?? "open";
-  const periodMode = report?.calculation_mode ?? "live";
+  const periodMode = report?.calculation_mode ?? selectedPeriodRow?.calculation_mode ?? "live";
+
+  const lifecycleHelper = periodStatus === "submitted"
+    ? "Period is submitted. Close it when VAT bookkeeping is complete."
+    : periodStatus === "closed"
+      ? "This VAT period is closed and read-only."
+      : "Close is only available after the period has been submitted.";
 
   const declarationRows = useMemo(() => {
     if (!declarationBoxes) return [];
@@ -3979,6 +3986,28 @@ function VatTab() {
     action: "calculate" | "lock" | "unlock" | "submit" | "close",
   ) {
     if (!selectedPeriodId || isProcessing) return;
+
+    const actionAllowed = (
+      (action === "calculate" || action === "lock") && periodStatus === "open"
+    ) || (
+      (action === "unlock" || action === "submit") && periodStatus === "locked"
+    ) || (
+      action === "close" && periodStatus === "submitted"
+    );
+
+    if (!actionAllowed) {
+      setVatError(
+        action === "close"
+          ? "Close is only available after the period has been submitted."
+          : action === "submit"
+            ? "Submit is only available after the period has been locked."
+            : action === "unlock" || action === "lock"
+              ? "This lifecycle action is not available for the current period status."
+              : "This lifecycle action is not available for the current period status.",
+      );
+      return;
+    }
+
     if (action === "unlock" && !unlockReason.trim()) {
       setVatError("Unlock reason is required.");
       return;
@@ -4135,27 +4164,37 @@ function VatTab() {
           <div className="grid gap-6 xl:grid-cols-2">
             <FinancePanel title="Lifecycle actions" description="Run lifecycle actions for the selected VAT period.">
               <div className="flex flex-wrap gap-2">
-                <button className="btn btn-secondary" type="button" disabled={isProcessing || periodStatus !== "open"} onClick={() => void handleLifecycleAction("calculate")}>Calculate</button>
-                <button className="btn btn-primary" type="button" disabled={isProcessing || periodStatus !== "open"} onClick={() => void handleLifecycleAction("lock")}>Lock period</button>
-                <button className="btn btn-secondary" type="button" disabled={isProcessing || periodStatus !== "locked"} onClick={() => void handleLifecycleAction("submit")}>Submit</button>
-                <button className="btn btn-secondary" type="button" disabled={isProcessing || periodStatus !== "submitted"} onClick={() => void handleLifecycleAction("close")}>Close</button>
+                {periodStatus === "open" ? (
+                  <>
+                    <button className="btn btn-secondary" type="button" disabled={isProcessing} onClick={() => void handleLifecycleAction("calculate")}>Calculate</button>
+                    <button className="btn btn-primary" type="button" disabled={isProcessing} onClick={() => void handleLifecycleAction("lock")}>Lock period</button>
+                  </>
+                ) : null}
+                {periodStatus === "locked" ? (
+                  <button className="btn btn-secondary" type="button" disabled={isProcessing} onClick={() => void handleLifecycleAction("submit")}>Submit</button>
+                ) : null}
+                {periodStatus === "submitted" ? (
+                  <button className="btn btn-secondary" type="button" disabled={isProcessing} onClick={() => void handleLifecycleAction("close")}>Close</button>
+                ) : null}
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-                <input
-                  className="h-11 rounded-lg border border-gray-200 px-4 text-sm"
-                  placeholder="Unlock reason"
-                  value={unlockReason}
-                  onChange={(event) => setUnlockReason(event.target.value)}
-                  disabled={isProcessing || periodStatus !== "locked"}
-                />
-                <button className="btn btn-secondary" type="button" disabled={isProcessing || periodStatus !== "locked" || !unlockReason.trim()} onClick={() => void handleLifecycleAction("unlock")}>
-                  Unlock
-                </button>
-              </div>
+              {periodStatus === "locked" ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                  <input
+                    className="h-11 rounded-lg border border-gray-200 px-4 text-sm"
+                    placeholder="Unlock reason"
+                    value={unlockReason}
+                    onChange={(event) => setUnlockReason(event.target.value)}
+                    disabled={isProcessing}
+                  />
+                  <button className="btn btn-secondary" type="button" disabled={isProcessing || !unlockReason.trim()} onClick={() => void handleLifecycleAction("unlock")}>
+                    Unlock
+                  </button>
+                </div>
+              ) : null}
               <p className="mt-4 text-sm text-gray-500">
                 {periodStatus === "open"
-                  ? "Open periods are live-calculated."
-                  : "Locked, submitted and closed periods are snapshot/read-only."}
+                  ? "Open periods are live-calculated. Lock the period before submission."
+                  : lifecycleHelper}
               </p>
             </FinancePanel>
 

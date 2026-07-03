@@ -135,6 +135,12 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   reimbursed:           { label: "Reimbursed",           color: "success", icon: BadgeCheck },
   cancelled:            { label: "Cancelled",            color: "error",   icon: Ban },
 
+  // Finance — VAT periods
+  open:       { label: "Open",       color: "info",    icon: Circle },
+  locked:     { label: "Locked",     color: "warning", icon: Eye },
+  submitted:  { label: "Submitted",  color: "primary", icon: Send },
+  closed:     { label: "Closed",     color: "success", icon: Archive },
+
   // Finance — transactions / receipts
   pending:          { label: "Pending",          color: "warning", icon: Clock },
   processing:       { label: "Processing",       color: "indigo",  icon: RefreshCw },

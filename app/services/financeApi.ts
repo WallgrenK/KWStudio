@@ -377,7 +377,13 @@ async function requestFinanceApi<T>(path: string, init: RequestInit = {}): Promi
     const data = await response.json().catch(() => null) as T | { error?: string; message?: string } | null;
 
     if (!response.ok) {
-      const backendError = data && typeof data === "object" ? JSON.stringify(data, null, 2) : null;
+      const backendError = data && typeof data === "object"
+        ? ("error" in data && typeof data.error === "string"
+          ? data.error
+          : "message" in data && typeof data.message === "string"
+            ? data.message
+            : null)
+        : null;
 
       return {
         ok: false,
