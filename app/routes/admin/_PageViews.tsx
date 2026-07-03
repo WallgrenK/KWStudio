@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, CheckCircle2, Plus, ReceiptText, Upload } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Download, FileCheck2, Plus, ReceiptText, Upload } from "lucide-react";
 import { AdminTabs as FinanceTabs } from "~/components/admin/AdminTabs";
 import { AdminShell } from "~/components/admin/AdminShell";
 import { AdminTable, type AdminTableColumn } from "~/components/admin/AdminTable";
@@ -141,7 +141,9 @@ import {
   getFinanceImports,
   getFinanceReceipts,
   getFinanceTransactions,
+  generateSieExport,
   importRevolutCsv,
+  isFinanceApiConfigured,
   matchFinanceReceipt,
   recalculateReceiptMatches,
   unmatchFinanceReceipt,
@@ -151,6 +153,7 @@ import {
   type FinanceReceiptCandidateDto,
   type FinanceReceiptDto,
   type FinanceTransactionDto,
+  type SieExportMetadata,
 } from "~/services/financeApi";
 import { buildScbRequest, type ScbLeadFinderFilters } from "~/services/scbMapper";
 
@@ -2931,6 +2934,54 @@ function AssetsTab() {
 }
 
 function ReportsTab() {
+  const currentYear = new Date().getFullYear();
+  const [from, setFrom] = useState(`${currentYear}-01-01`);
+  const [to, setTo] = useState(`${currentYear}-12-31`);
+  const [includeOpeningBalances, setIncludeOpeningBalances] = useState(true);
+  const [includeClosingBalances, setIncludeClosingBalances] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [exportResult, setExportResult] = useState<SieExportMetadata | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function handleSieExport() {
+    if (isGenerating) return;
+
+    setIsGenerating(true);
+    setExportError(null);
+
+    const result = await generateSieExport({
+      from,
+      to,
+      includeOpeningBalances,
+      includeClosingBalances,
+    });
+
+    if (result.ok && result.data) {
+      const url = URL.createObjectURL(result.data.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.data.metadata.filename;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setExportResult(result.data.metadata);
+    } else {
+      setExportResult(result.data?.metadata ?? null);
+      setExportError(result.error ?? "Could not generate SIE export.");
+    }
+
+    setIsGenerating(false);
+  }
+
+  const validation = exportResult?.validation;
+  const validationRows = [
+    { label: "Trial Balance Balanced", passed: validation?.checks.trialBalanceBalanced ?? false },
+    { label: "Journal Entries Posted", passed: validation?.checks.journalEntriesPosted ?? false },
+    { label: "Accounts Valid", passed: validation?.checks.accountsValid ?? false },
+    { label: "Verifications Balanced", passed: validation?.checks.verificationsBalanced ?? false },
+  ];
+
   return (
     <div className="space-y-6">
       <FinancePanel title="Current period status">
@@ -2941,6 +2992,123 @@ function ReportsTab() {
             { label: "Missing data", value: reportStatus.missingData },
           ]}
         />
+      </FinancePanel>
+      <FinancePanel title="Exports" description="Generate a backend-built Swedish SIE4 file from posted journal entries.">
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <div className="rounded-xl border border-gray-100 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-800">SIE Export</h3>
+                <p className="mt-2 text-sm leading-6 text-gray-500">Exports posted verifications from the general ledger. Draft entries are not included.</p>
+              </div>
+              <FileCheck2 className="size-6 shrink-0 text-[#2E75BD]" aria-hidden="true" />
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-medium text-gray-700">
+                <span className="mb-2 block">From</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  type="date"
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                <span className="mb-2 block">To</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  type="date"
+                  value={to}
+                  onChange={(event) => setTo(event.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="flex items-center justify-between gap-4 rounded-lg border border-gray-100 px-3 py-2 text-sm font-medium text-gray-700">
+                <span>Include Opening Balances</span>
+                <input
+                  className="size-4 accent-[#2E75BD]"
+                  type="checkbox"
+                  checked={includeOpeningBalances}
+                  onChange={(event) => setIncludeOpeningBalances(event.target.checked)}
+                />
+              </label>
+              <label className="flex items-center justify-between gap-4 rounded-lg border border-gray-100 px-3 py-2 text-sm font-medium text-gray-700">
+                <span>Include Closing Balances</span>
+                <input
+                  className="size-4 accent-[#2E75BD]"
+                  type="checkbox"
+                  checked={includeClosingBalances}
+                  onChange={(event) => setIncludeClosingBalances(event.target.checked)}
+                />
+              </label>
+            </div>
+
+            <button
+              className="btn btn-primary mt-5 inline-flex items-center"
+              type="button"
+              disabled={isGenerating || !isFinanceApiConfigured}
+              onClick={() => void handleSieExport()}
+            >
+              <Download className="mr-2 size-4" aria-hidden="true" />
+              {isGenerating ? "Generating..." : "Generate SIE4"}
+            </button>
+            {!isFinanceApiConfigured ? <p className="mt-3 text-sm text-amber-700">Set VITE_KWSTUDIO_API_URL to enable backend exports.</p> : null}
+            {exportError ? <pre className="mt-4 overflow-auto rounded-lg bg-red-50 p-3 text-xs leading-5 text-red-800">{exportError}</pre> : null}
+          </div>
+
+          <div className="rounded-xl border border-gray-100 p-4">
+            <h3 className="text-base font-semibold text-gray-800">Validation</h3>
+            <div className="mt-4 grid gap-3">
+              {validationRows.map((row) => (
+                <div key={row.label} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2">
+                  <span className="text-sm text-gray-600">{row.label}</span>
+                  {row.passed ? (
+                    <CheckCircle2 className="size-5 text-emerald-600" aria-label="Passed" />
+                  ) : (
+                    <AlertCircle className="size-5 text-gray-300" aria-label="Not checked" />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {exportResult ? (
+              <div className="mt-5">
+                <FinanceDefinitionList
+                  rows={[
+                    { label: "Filename", value: exportResult.filename },
+                    { label: "Created", value: formatShortDate(exportResult.created) },
+                    { label: "Verifications", value: String(exportResult.verifications) },
+                    { label: "Accounts", value: String(exportResult.accounts) },
+                    { label: "Warnings", value: String(exportResult.validation.warnings.length) },
+                  ]}
+                />
+              </div>
+            ) : (
+              <p className="mt-5 text-sm leading-6 text-gray-500">Generate an export to see file metadata and validation results.</p>
+            )}
+
+            {validation?.warnings.length ? (
+              <div className="mt-4 rounded-lg bg-amber-50 p-3">
+                <h4 className="text-sm font-semibold text-amber-900">Warnings</h4>
+                <ul className="mt-2 space-y-1 text-sm leading-6 text-amber-800">
+                  {validation.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              </div>
+            ) : null}
+
+            {validation?.errors.length ? (
+              <div className="mt-4 rounded-lg bg-red-50 p-3">
+                <h4 className="text-sm font-semibold text-red-900">Errors</h4>
+                <ul className="mt-2 space-y-1 text-sm leading-6 text-red-800">
+                  {validation.errors.map((error) => <li key={error}>{error}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </FinancePanel>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {financeReports.map((report: FinanceReport) => {

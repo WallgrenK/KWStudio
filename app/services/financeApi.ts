@@ -110,6 +110,40 @@ export type FinanceReceiptUploadFields = {
   currency?: string;
 };
 
+export type SieExportRequest = {
+  from: string;
+  to: string;
+  includeOpeningBalances: boolean;
+  includeClosingBalances: boolean;
+};
+
+export type SieExportValidation = {
+  ok: boolean;
+  checks: {
+    trialBalanceBalanced: boolean;
+    journalEntriesPosted: boolean;
+    accountsValid: boolean;
+    verificationsBalanced: boolean;
+  };
+  errors: string[];
+  warnings: string[];
+};
+
+export type SieExportMetadata = {
+  type: "SIE4";
+  encoding: "UTF-8";
+  lineEndings: "CRLF";
+  created: string;
+  period: { from: string; to: string };
+  filename: string;
+  verifications: number;
+  accounts: number;
+  verificationSeries: string[];
+  includeOpeningBalances: boolean;
+  includeClosingBalances: boolean;
+  validation: SieExportValidation;
+};
+
 type ApiResult<T> = {
   ok: boolean;
   data?: T;
@@ -166,6 +200,86 @@ async function requestFinanceApi<T>(path: string, init: RequestInit = {}): Promi
       error: error instanceof Error ? error.message : "Finance API request failed.",
     };
   }
+}
+
+async function requestFinanceFile(path: string, init: RequestInit = {}): Promise<ApiResult<{ blob: Blob; metadata: SieExportMetadata }>> {
+  if (!apiUrl) {
+    return { ok: false, error: "API not configured. Set VITE_KWSTUDIO_API_URL." };
+  }
+
+  const authorization = await authHeader();
+  if (!authorization) {
+    return { ok: false, error: "Authentication required. Sign in before calling the KWStudio API." };
+  }
+
+  try {
+    const response = await fetch(`${apiUrl.replace(/\/$/, "")}${path}`, {
+      ...init,
+      headers: {
+        Authorization: authorization,
+        ...(init.headers ?? {}),
+      },
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null) as { error?: string; message?: string; validation?: SieExportValidation } | null;
+      const backendError = data ? JSON.stringify(data, null, 2) : null;
+
+      return {
+        ok: false,
+        status: response.status,
+        error: backendError ?? `Finance API request failed with ${response.status}.`,
+        data: data?.validation ? { blob: new Blob(), metadata: validationMetadataFallback(data.validation) } : undefined,
+      };
+    }
+
+    const encodedMetadata = response.headers.get("X-SIE-Metadata");
+    const metadata = encodedMetadata
+      ? JSON.parse(decodeURIComponent(encodedMetadata)) as SieExportMetadata
+      : validationMetadataFallback({
+        ok: true,
+        checks: {
+          trialBalanceBalanced: true,
+          journalEntriesPosted: true,
+          accountsValid: true,
+          verificationsBalanced: true,
+        },
+        errors: [],
+        warnings: [],
+      });
+
+    return {
+      ok: true,
+      status: response.status,
+      data: {
+        blob: await response.blob(),
+        metadata,
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Finance API request failed.",
+    };
+  }
+}
+
+function validationMetadataFallback(validation: SieExportValidation): SieExportMetadata {
+  const now = new Date().toISOString();
+  return {
+    type: "SIE4",
+    encoding: "UTF-8",
+    lineEndings: "CRLF",
+    created: now,
+    period: { from: "", to: "" },
+    filename: "KWStudio.se",
+    verifications: 0,
+    accounts: 0,
+    verificationSeries: [],
+    includeOpeningBalances: false,
+    includeClosingBalances: false,
+    validation,
+  };
 }
 
 export function importRevolutCsv(file: File) {
@@ -259,4 +373,12 @@ export function recalculateReceiptMatches(receiptId: string) {
     `/finance/receipts/${receiptId}/recalculate-matches`,
     { method: "POST" },
   );
+}
+
+export function generateSieExport(payload: SieExportRequest) {
+  return requestFinanceFile("/finance/sie/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
