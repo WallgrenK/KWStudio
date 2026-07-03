@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import type { LucideIcon } from "lucide-react";
+import { StatusBadge } from "~/components/admin/StatusBadge";
 
 type HubCardProps = {
   title: string;
@@ -21,7 +22,7 @@ export function HubCard({ title, description, href, status, icon: Icon }: HubCar
           ) : null}
           <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
         </div>
-        {status ? <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">{status}</span> : null}
+        {status ? <StatusBadge status={status} /> : null}
       </div>
       <p className="mt-3 text-sm leading-6 text-gray-500">{description}</p>
     </>

@@ -102,6 +102,75 @@ export type FinanceReceiptDto = {
   candidates?: FinanceReceiptCandidateDto[];
 };
 
+export type OwnerExpenseStatus = "draft" | "posted" | "partially_reimbursed" | "reimbursed" | "cancelled";
+export type OwnerExpensePaymentSource = "owner_private" | "company_bank";
+
+export type OwnerExpenseReimbursementDto = {
+  id: string;
+  owner_expense_id: string;
+  linked_bank_transaction_id: string | null;
+  amount: number | string;
+  reimbursed_at: string;
+  journal_entry_id: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type OwnerExpenseDto = {
+  id: string;
+  status: OwnerExpenseStatus;
+  payment_source: OwnerExpensePaymentSource;
+  linked_bank_transaction_id: string | null;
+  expense_date: string;
+  description: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  receipt_id: string | null;
+  currency: string;
+  gross_amount: number | string;
+  net_amount: number | string;
+  vat_amount: number | string;
+  vat_rate: number | string | null;
+  vat_treatment: string | null;
+  is_vat_deductible: boolean;
+  reverse_charge: boolean;
+  expense_account: string;
+  recognition_owner_account: string;
+  reimbursement_owner_account: string;
+  recognition_journal_entry_id: string | null;
+  notes: string | null;
+  total_reimbursed_amount: number | string;
+  outstanding_amount: number | string;
+  posted_at: string | null;
+  created_by: string | null;
+  posted_by: string | null;
+  created_at: string;
+  updated_at: string;
+  reimbursements?: OwnerExpenseReimbursementDto[];
+  receipt?: FinanceReceiptDto | null;
+  supplier?: {
+    id: string;
+    name: string;
+    normalized_name: string;
+  } | null;
+  linked_bank_transaction?: FinanceTransactionDto | null;
+  recognition_entry?: {
+    id: string;
+    verification_number: string | null;
+    entry_date: string | null;
+    description: string | null;
+    status: string;
+  } | null;
+  recognition_lines?: Array<{
+    id: string;
+    account: string;
+    debit: number | string | null;
+    credit: number | string | null;
+    description: string | null;
+  }>;
+};
+
 export type FinanceReceiptUploadFields = {
   supplier?: string;
   receiptDate?: string;
@@ -142,6 +211,130 @@ export type SieExportMetadata = {
   includeOpeningBalances: boolean;
   includeClosingBalances: boolean;
   validation: SieExportValidation;
+};
+
+export type VatPeriodStatus = "open" | "locked" | "submitted" | "closed";
+
+export type VatPeriodHistoryEventDto = {
+  at: string;
+  action: "created" | "locked" | "unlocked" | "submitted" | "closed";
+  from_status: VatPeriodStatus | null;
+  to_status: VatPeriodStatus;
+  actor: string | null;
+  reason?: string;
+  calculation_hash?: string | null;
+};
+
+export type VatPeriodDto = {
+  id: string;
+  period_start: string;
+  period_end: string;
+  period_type: "monthly" | "quarterly" | "yearly";
+  status: VatPeriodStatus;
+  created_at: string;
+  updated_at: string;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  unlocked_at?: string | null;
+  unlocked_by?: string | null;
+  unlock_reason?: string | null;
+  submitted_at?: string | null;
+  submitted_by?: string | null;
+  submission_metadata?: Record<string, unknown> | null;
+  closed_at?: string | null;
+  closed_by?: string | null;
+  calculation_hash?: string | null;
+  history?: VatPeriodHistoryEventDto[];
+};
+
+export type VatBreakdownByAccountDto = {
+  account: string;
+  account_name: string | null;
+  output_vat: number;
+  input_vat: number;
+  deductible_vat: number;
+  non_deductible_vat: number;
+  references: Array<{
+    journal_entry_id: string;
+    journal_line_id: string;
+    verification_number: string | null;
+    account: string;
+    account_name: string | null;
+    posting_date: string | null;
+    journal_description: string | null;
+    line_description: string | null;
+  }>;
+};
+
+export type VatBreakdownByJournalDto = {
+  journal_entry_id: string;
+  verification_number: string | null;
+  posting_date: string | null;
+  description: string | null;
+  output_vat: number;
+  input_vat: number;
+  deductible_vat: number;
+  non_deductible_vat: number;
+  references: VatBreakdownByAccountDto["references"];
+};
+
+export type VatDeclarationBoxesDto = {
+  box_05: number;
+  box_06: number;
+  box_07: number;
+  box_08: number;
+  box_10: number;
+  box_11: number;
+  box_12: number;
+  box_48: number;
+  box_49: number;
+};
+
+export type VatDeclarationSummaryDto = {
+  output_vat: number;
+  input_vat: number;
+  deductible_vat: number;
+  non_deductible_vat: number;
+  vat_payable: number;
+  vat_refundable: number;
+};
+
+export type VatReportDto = {
+  period: VatPeriodDto;
+  calculation_mode: "live" | "snapshot";
+  summary: VatDeclarationSummaryDto & {
+    journal_entries: number;
+    boxes: VatDeclarationBoxesDto;
+  };
+  breakdownByAccount: VatBreakdownByAccountDto[];
+  breakdownByJournal: VatBreakdownByJournalDto[];
+  entries?: Array<{
+    id: string;
+    verification_number: string | null;
+    entry_date: string | null;
+    description: string | null;
+  }>;
+};
+
+export type VatDeclarationDto = {
+  period: VatPeriodDto;
+  calculation_mode: "live" | "snapshot";
+  declaration: {
+    generated_at: string;
+    source: "posted_journals";
+    boxes: VatDeclarationBoxesDto;
+    summary: VatDeclarationSummaryDto;
+  };
+};
+
+export type VatPeriodCalculatedDto = {
+  period: VatPeriodDto;
+  calculation_mode: "live" | "snapshot";
+  summary?: VatReportDto["summary"];
+  entries?: VatReportDto["entries"];
+  breakdownByAccount?: VatBreakdownByAccountDto[];
+  breakdownByJournal?: VatBreakdownByJournalDto[];
+  declaration_snapshot?: unknown;
 };
 
 type ApiResult<T> = {
@@ -308,6 +501,57 @@ export function getFinanceTransactions(params: { status?: string; receipt_status
   );
 }
 
+export function getOwnerExpenses(params: { status?: string; payment_source?: string; limit?: number } = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.status) searchParams.set("status", params.status);
+  if (params.payment_source) searchParams.set("payment_source", params.payment_source);
+  if (params.limit) searchParams.set("limit", String(params.limit));
+  const query = searchParams.toString();
+
+  return requestFinanceApi<{ ok: true; ownerExpenses: OwnerExpenseDto[] }>(
+    `/finance/owner-expenses${query ? `?${query}` : ""}`,
+  );
+}
+
+export function createOwnerExpense(payload: Partial<OwnerExpenseDto> & { description: string; gross_amount: number | string; expense_account: string }) {
+  return requestFinanceApi<{ ok: true; ownerExpense: OwnerExpenseDto }>("/finance/owner-expenses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getOwnerExpense(id: string) {
+  return requestFinanceApi<{ ok: true; ownerExpense: OwnerExpenseDto }>(`/finance/owner-expenses/${id}`);
+}
+
+export function updateOwnerExpense(id: string, payload: Partial<OwnerExpenseDto>) {
+  return requestFinanceApi<{ ok: true; ownerExpense: OwnerExpenseDto }>(`/finance/owner-expenses/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function postOwnerExpense(id: string, payload: { posted_by?: string } = {}) {
+  return requestFinanceApi<{ ok: true; ownerExpense: OwnerExpenseDto }>(`/finance/owner-expenses/${id}/post`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function reimburseOwnerExpense(
+  id: string,
+  payload: { amount: number | string; reimbursed_at?: string; linked_bank_transaction_id?: string; notes?: string; created_by?: string },
+) {
+  return requestFinanceApi<{ ok: true; ownerExpense: OwnerExpenseDto }>(`/finance/owner-expenses/${id}/reimburse`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function uploadFinanceReceipt(file: File, fields: FinanceReceiptUploadFields = {}) {
   const formData = new FormData();
   formData.append("file", file);
@@ -375,10 +619,145 @@ export function recalculateReceiptMatches(receiptId: string) {
   );
 }
 
+export type FinanceAccountCatalogDto = {
+  account: string;
+  name: string;
+  account_type: string;
+  category: string | null;
+  is_active: boolean | null;
+};
+
+export type FinanceSupplierDto = {
+  id: string;
+  name: string;
+  normalized_name: string;
+  default_category: string | null;
+  default_bas_account: string | null;
+  default_vat_rate: number | string | null;
+  vat_treatment: string | null;
+  reverse_charge: boolean;
+  is_active: boolean;
+  confirmed_matches: number;
+};
+
+export function getFinanceAccountsCatalog() {
+  return requestFinanceApi<{ ok: true; accounts: FinanceAccountCatalogDto[] }>("/finance/accounts/catalog");
+}
+
+export function createFinanceSupplier(payload: {
+  name: string;
+  default_bas_account?: string | null;
+  default_vat_rate?: number | null;
+  vat_treatment?: string | null;
+}) {
+  return requestFinanceApi<{ ok: true; supplier: FinanceSupplierDto }>("/finance/suppliers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getFinanceSuppliers(params: { active?: boolean } = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.active !== undefined) searchParams.set("active", String(params.active));
+  const query = searchParams.toString();
+  return requestFinanceApi<{ ok: true; suppliers: FinanceSupplierDto[] }>(
+    `/finance/suppliers${query ? `?${query}` : ""}`,
+  );
+}
+
+export function updateFinanceSupplier(
+  id: string,
+  payload: {
+    name?: string;
+    default_category?: string | null;
+    default_bas_account?: string | null;
+    default_vat_rate?: number | null;
+    vat_treatment?: string | null;
+    reverse_charge?: boolean;
+    is_active?: boolean;
+  },
+) {
+  return requestFinanceApi<{ ok: true; supplier: FinanceSupplierDto }>(`/finance/suppliers/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function generateSieExport(payload: SieExportRequest) {
   return requestFinanceFile("/finance/sie/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export function getVatPeriods(params: { frequency?: "monthly" | "quarterly" | "yearly"; year?: number; status?: VatPeriodStatus; limit?: number } = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.frequency) searchParams.set("frequency", params.frequency);
+  if (params.year) searchParams.set("year", String(params.year));
+  if (params.status) searchParams.set("status", params.status);
+  if (params.limit) searchParams.set("limit", String(params.limit));
+  const query = searchParams.toString();
+  return requestFinanceApi<{ ok: true; periods: VatPeriodCalculatedDto[] }>(`/finance/vat/periods${query ? `?${query}` : ""}`);
+}
+
+export function ensureVatPeriod(payload: { periodType: "monthly" | "quarterly" | "yearly"; periodStart: string; periodEnd: string }) {
+  return requestFinanceApi<{ ok: true; period: VatPeriodDto }>("/finance/vat/periods/ensure", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function calculateVatPeriod(id: string) {
+  return requestFinanceApi<{ ok: true } & VatPeriodCalculatedDto>(`/finance/vat/periods/${id}/calculate`, {
+    method: "POST",
+  });
+}
+
+export function getVatPeriodReport(id: string) {
+  return requestFinanceApi<{ ok: true; report: VatReportDto }>(`/finance/vat/periods/${id}/report`);
+}
+
+export function getVatPeriodDeclaration(id: string) {
+  return requestFinanceApi<{ ok: true } & VatDeclarationDto>(`/finance/vat/periods/${id}/declaration`);
+}
+
+export function lockVatPeriod(id: string) {
+  return requestFinanceApi<{ ok: true } & VatPeriodCalculatedDto>(`/finance/vat/periods/${id}/lock`, {
+    method: "POST",
+  });
+}
+
+export function unlockVatPeriod(id: string, reason: string) {
+  return requestFinanceApi<{ ok: true } & VatPeriodCalculatedDto>(`/finance/vat/periods/${id}/unlock`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function submitVatPeriod(id: string, metadata?: Record<string, unknown>) {
+  return requestFinanceApi<{ ok: true } & VatPeriodCalculatedDto>(`/finance/vat/periods/${id}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(metadata ? { metadata } : {}),
+  });
+}
+
+export function closeVatPeriod(id: string) {
+  return requestFinanceApi<{ ok: true } & VatPeriodCalculatedDto>(`/finance/vat/periods/${id}/close`, {
+    method: "POST",
+  });
+}
+
+export function getVatPeriodHistory(id: string) {
+  return requestFinanceApi<{
+    ok: true;
+    period: VatPeriodDto;
+    history: VatPeriodHistoryEventDto[];
+    history_supported: true;
+  }>(`/finance/vat/periods/${id}/history`);
 }

@@ -1,4 +1,3 @@
-import type { AdminStatus } from "~/data/admin";
 import { StatusBadge } from "~/components/admin/StatusBadge";
 
 export type TaskListItem = {
@@ -6,7 +5,7 @@ export type TaskListItem = {
   title: string;
   meta: string;
   description?: string;
-  status?: AdminStatus;
+  status?: string;
 };
 
 export function TaskList({ items }: { items: TaskListItem[] }) {

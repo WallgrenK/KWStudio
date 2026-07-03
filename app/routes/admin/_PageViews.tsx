@@ -106,7 +106,6 @@ import {
   taxEstimate,
   taxPocket,
   transactions as financeTransactions,
-  vatSummary,
   outstandingInvoices,
   type FinanceAsset,
   type FinanceExpense,
@@ -138,22 +137,51 @@ import {
   type LeadsResult,
 } from "~/services/leads";
 import {
+  createFinanceSupplier,
+  createOwnerExpense,
+  getFinanceAccountsCatalog,
   getFinanceImports,
+  getFinanceSuppliers,
+  getOwnerExpense,
+  getOwnerExpenses,
   getFinanceReceipts,
   getFinanceTransactions,
   generateSieExport,
+  getVatPeriods,
+  ensureVatPeriod,
+  calculateVatPeriod,
+  getVatPeriodReport,
+  getVatPeriodDeclaration,
+  lockVatPeriod,
+  unlockVatPeriod,
+  submitVatPeriod,
+  closeVatPeriod,
+  getVatPeriodHistory,
   importRevolutCsv,
   isFinanceApiConfigured,
   matchFinanceReceipt,
+  postOwnerExpense,
   recalculateReceiptMatches,
+  reimburseOwnerExpense,
   unmatchFinanceReceipt,
+  updateFinanceSupplier,
+  updateOwnerExpense,
   uploadFinanceReceipt,
+  type FinanceAccountCatalogDto,
   type FinanceImportBatchDto,
   type FinanceImportResultDto,
+  type FinanceSupplierDto,
+  type OwnerExpenseDto,
+  type OwnerExpensePaymentSource,
   type FinanceReceiptCandidateDto,
   type FinanceReceiptDto,
   type FinanceTransactionDto,
   type SieExportMetadata,
+  type VatDeclarationBoxesDto,
+  type VatPeriodCalculatedDto,
+  type VatPeriodHistoryEventDto,
+  type VatPeriodStatus,
+  type VatReportDto,
 } from "~/services/financeApi";
 import { buildScbRequest, type ScbLeadFinderFilters } from "~/services/scbMapper";
 
@@ -783,29 +811,6 @@ function hasScbNarrowingFilters(filters: ScbLeadFinderFilters) {
   );
 }
 
-function LeadStageBadge({ stage }: { stage: LeadStage }) {
-  const styles: Record<LeadStage, string> = {
-    New: "bg-blue-50 text-[#2E75BD]",
-    Researching: "bg-slate-100 text-slate-700",
-    Contacted: "bg-sky-50 text-sky-700",
-    Qualified: "bg-green-50 text-green-700",
-    Proposal: "bg-amber-50 text-amber-700",
-    Won: "bg-emerald-50 text-emerald-700",
-    Lost: "bg-gray-100 text-gray-600",
-  };
-
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${styles[stage]}`}>{stage}</span>;
-}
-
-function PriorityBadge({ priority }: { priority: LeadPriority }) {
-  const styles: Record<LeadPriority, string> = {
-    High: "bg-red-50 text-red-600",
-    Medium: "bg-amber-50 text-amber-600",
-    Low: "bg-gray-100 text-gray-600",
-  };
-
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${styles[priority]}`}>{priority}</span>;
-}
 
 function ScoreBadge({ score }: { score: number | null }) {
   const value = score ?? 0;
@@ -958,7 +963,7 @@ function LeadPipeline({ leads }: { leads: LeadWithCompanyAndAudit[] }) {
                         <h4 className="truncate text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h4>
                         <p className="mt-0.5 truncate text-xs text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "Lead record"}</p>
                       </div>
-                      <PriorityBadge priority={mapLeadPriority(lead.priority)} />
+                      <StatusBadge status={mapLeadPriority(lead.priority)} />
                     </div>
                     <p className="mt-3 truncate text-xs font-medium text-gray-500">{leadSourceLabel(lead)}</p>
                     <p className="mt-1 truncate text-sm text-gray-700">{lead.service_interest ?? "Website opportunity"}</p>
@@ -1213,9 +1218,9 @@ function LeadDetailsPanel({
   ];
   const badges = (
     <>
-      <LeadStageBadge stage={mapLeadStage(lead.status)} />
+      <StatusBadge status={mapLeadStage(lead.status)} />
       <ScoreBadge score={lead.score} />
-      <PriorityBadge priority={mapLeadPriority(lead.priority)} />
+      <StatusBadge status={mapLeadPriority(lead.priority)} />
     </>
   );
   const workspaceData: LeadWorkspaceData = {
@@ -1496,9 +1501,9 @@ export function LeadsPage() {
         </div>
       ),
     },
-    { key: "status", header: "Status", render: (lead) => <LeadStageBadge stage={mapLeadStage(lead.status)} /> },
+    { key: "status", header: "Status", render: (lead) => <StatusBadge status={mapLeadStage(lead.status)} /> },
     { key: "score", header: "Score", render: (lead) => <ScoreBadge score={lead.score} /> },
-    { key: "priority", header: "Priority", render: (lead) => <PriorityBadge priority={mapLeadPriority(lead.priority)} /> },
+    { key: "priority", header: "Priority", render: (lead) => <StatusBadge status={mapLeadPriority(lead.priority)} /> },
     {
       key: "opportunity",
       header: "Opportunity",
@@ -2081,6 +2086,49 @@ function receiptMatchStatus(status: string) {
   return "Pending";
 }
 
+
+function formatKr(value: number | string | null | undefined) {
+  const n = toNumber(value);
+  return `${n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
+}
+
+function toVatFrequencyLabel(value: "monthly" | "quarterly" | "yearly") {
+  if (value === "monthly") return "Monthly";
+  if (value === "quarterly") return "Quarterly";
+  return "Yearly";
+}
+
+function buildVatPeriodInput(frequency: "monthly" | "quarterly" | "yearly", year: number) {
+  const now = new Date();
+  if (frequency === "yearly") {
+    return {
+      periodType: frequency,
+      periodStart: `${year}-01-01`,
+      periodEnd: `${year}-12-31`,
+    };
+  }
+
+  if (frequency === "quarterly") {
+    const quarter = year === now.getFullYear() ? Math.floor(now.getMonth() / 3) + 1 : 1;
+    const startMonth = (quarter - 1) * 3 + 1;
+    const endMonth = startMonth + 2;
+    const endDate = new Date(Date.UTC(year, endMonth, 0)).getUTCDate();
+    return {
+      periodType: frequency,
+      periodStart: `${year}-${String(startMonth).padStart(2, "0")}-01`,
+      periodEnd: `${year}-${String(endMonth).padStart(2, "0")}-${String(endDate).padStart(2, "0")}`,
+    };
+  }
+
+  const month = year === now.getFullYear() ? now.getMonth() + 1 : 1;
+  const endDate = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return {
+    periodType: frequency,
+    periodStart: `${year}-${String(month).padStart(2, "0")}-01`,
+    periodEnd: `${year}-${String(month).padStart(2, "0")}-${String(endDate).padStart(2, "0")}`,
+  };
+}
+
 function transactionSummary(transaction: FinanceReceiptDto["best_transaction"] | FinanceReceiptDto["confirmed_transaction"]) {
   if (!transaction) return "-";
   return `${transaction.description} - ${formatFinanceAmount(toNumber(transaction.gross_amount), transaction.currency)}`;
@@ -2574,6 +2622,924 @@ function ExpensesFinanceTab() {
   );
 }
 
+function OwnerExpensesTab({
+  ownerExpenses = [],
+  backendReceipts = [],
+  onBackendRefresh,
+}: {
+  ownerExpenses: OwnerExpenseDto[];
+  backendReceipts: FinanceReceiptDto[];
+  onBackendRefresh: () => void;
+}) {
+  const [accounts, setAccounts] = useState<FinanceAccountCatalogDto[]>([]);
+  const [suppliers, setSuppliers] = useState<FinanceSupplierDto[]>([]);
+  const [supplierInput, setSupplierInput] = useState("");
+  const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
+  const [isNewSupplier, setIsNewSupplier] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [paymentSourceFilter, setPaymentSourceFilter] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedExpense, setSelectedExpense] = useState<OwnerExpenseDto | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [ownerExpenseError, setOwnerExpenseError] = useState<string | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
+  const [isReimbursing, setIsReimbursing] = useState(false);
+  const [reimbursementAmount, setReimbursementAmount] = useState("");
+  const [detailReceiptPicking, setDetailReceiptPicking] = useState(false);
+  const [detailReceiptPickId, setDetailReceiptPickId] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [newDraft, setNewDraft] = useState<{
+    description: string;
+    gross_amount: string;
+    vat_amount: string;
+    expense_date: string;
+    expense_account: string;
+    supplier_id: string;
+    supplier_name: string;
+    receipt_id: string;
+    notes: string;
+    vat_treatment: string;
+    payment_source: OwnerExpensePaymentSource;
+    is_vat_deductible: boolean;
+    reverse_charge: boolean;
+  }>({
+    description: "",
+    gross_amount: "",
+    vat_amount: "0",
+    expense_date: new Date().toISOString().slice(0, 10),
+    expense_account: "",
+    supplier_id: "",
+    supplier_name: "",
+    receipt_id: "",
+    notes: "",
+    vat_treatment: "swedish_standard",
+    payment_source: "owner_private",
+    is_vat_deductible: true,
+    reverse_charge: false,
+  });
+
+  // Load accounts catalog and active suppliers once on mount
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([getFinanceAccountsCatalog(), getFinanceSuppliers()])
+      .then(([accountsResult, suppliersResult]) => {
+        if (!isMounted) return;
+        if (accountsResult.ok && accountsResult.data) setAccounts(accountsResult.data.accounts ?? []);
+        if (suppliersResult.ok && suppliersResult.data) {
+          setSuppliers((suppliersResult.data.suppliers ?? []).filter((s) => s.is_active));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedExpense(null);
+      return;
+    }
+    let isMounted = true;
+    setIsLoadingDetails(true);
+    getOwnerExpense(selectedId)
+      .then((result) => {
+        if (!isMounted) return;
+        if (result.ok && result.data) {
+          setSelectedExpense(result.data.ownerExpense);
+        } else {
+          setOwnerExpenseError(result.error ?? "Could not load owner expense details.");
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingDetails(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedId]);
+
+  // Return "1234 — Account Name" for display; falls back to the number alone
+  function accountLabel(accountNumber: string) {
+    if (!accountNumber) return "—";
+    const found = accounts.find((a) => a.account === accountNumber);
+    return found ? `${found.account} — ${found.name}` : accountNumber;
+  }
+
+  // Normalize for duplicate-detection: lowercase, collapse whitespace
+  function normalizeForMatch(name: string) {
+    return name.toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  // Combobox: filter suppliers by typed text
+  const supplierMatches = supplierInput.trim()
+    ? suppliers.filter((s) => s.name.toLowerCase().includes(supplierInput.toLowerCase()))
+    : suppliers;
+
+  // Show "Create" option only when typed text has no exact normalized match
+  const canCreateSupplier =
+    supplierInput.trim().length >= 2 &&
+    !suppliers.some((s) => s.normalized_name === normalizeForMatch(supplierInput));
+
+  // When a known supplier is selected from the dropdown
+  function handleSupplierSelect(supplierId: string) {
+    const supplier = suppliers.find((s) => s.id === supplierId);
+    setSupplierInput(supplier?.name ?? "");
+    setIsNewSupplier(false);
+    setSupplierDropdownOpen(false);
+    setNewDraft((prev) => ({
+      ...prev,
+      supplier_id: supplierId,
+      supplier_name: supplier?.name ?? "",
+      expense_account: supplier?.default_bas_account ?? prev.expense_account,
+      vat_treatment: supplier?.vat_treatment ?? prev.vat_treatment,
+      reverse_charge: Boolean(supplier?.reverse_charge),
+      is_vat_deductible: !supplier?.reverse_charge,
+    }));
+  }
+
+  // When user edits the combobox input — clears any existing selection
+  function handleSupplierInputChange(value: string) {
+    setSupplierInput(value);
+    setIsNewSupplier(false);
+    setSupplierDropdownOpen(true);
+    setNewDraft((prev) => ({ ...prev, supplier_id: "", supplier_name: "" }));
+  }
+
+  // When user confirms "Create supplier X" from the dropdown
+  function handleConfirmNewSupplier() {
+    const name = supplierInput.trim();
+    if (!name) return;
+    setIsNewSupplier(true);
+    setSupplierDropdownOpen(false);
+    setNewDraft((prev) => ({ ...prev, supplier_id: "", supplier_name: name }));
+  }
+
+  // When a receipt is selected, auto-populate amounts, date, and supplier
+  function handleReceiptSelect(receiptId: string) {
+    const receipt = backendReceipts.find((r) => r.id === receiptId);
+    if (!receipt) {
+      setNewDraft((prev) => ({ ...prev, receipt_id: receiptId }));
+      return;
+    }
+    const matchingSupplier = receipt.supplier
+      ? suppliers.find((s) => s.name.toLowerCase() === receipt.supplier!.toLowerCase())
+      : null;
+    if (receipt.supplier) {
+      setSupplierInput(receipt.supplier);
+      setIsNewSupplier(!matchingSupplier);
+    }
+    setNewDraft((prev) => ({
+      ...prev,
+      receipt_id: receiptId,
+      supplier_name: receipt.supplier ?? prev.supplier_name,
+      supplier_id: matchingSupplier?.id ?? prev.supplier_id,
+      gross_amount:
+        receipt.total_amount !== null && receipt.total_amount !== undefined
+          ? String(Math.abs(toNumber(receipt.total_amount)))
+          : prev.gross_amount,
+      vat_amount:
+        receipt.vat_amount !== null && receipt.vat_amount !== undefined
+          ? String(Math.abs(toNumber(receipt.vat_amount)))
+          : prev.vat_amount,
+      expense_date: receipt.receipt_date?.slice(0, 10) ?? prev.expense_date,
+      expense_account: matchingSupplier?.default_bas_account ?? prev.expense_account,
+    }));
+  }
+
+  async function handleLinkReceiptToDraft() {
+    if (!selected || selected.status !== "draft" || !detailReceiptPickId) return;
+    const result = await updateOwnerExpense(selected.id, { receipt_id: detailReceiptPickId });
+    if (result.ok && result.data) {
+      setSelectedExpense(result.data.ownerExpense);
+      setDetailReceiptPicking(false);
+      setDetailReceiptPickId("");
+      onBackendRefresh();
+    } else {
+      setOwnerExpenseError(result.error ?? "Could not link receipt.");
+    }
+  }
+
+  const filteredRows = ownerExpenses.filter((expense) => {
+    if (statusFilter !== "all" && expense.status !== statusFilter) return false;
+    if (paymentSourceFilter !== "all" && expense.payment_source !== paymentSourceFilter) return false;
+    return true;
+  });
+  const selectedFallback = selectedId ? (ownerExpenses.find((e) => e.id === selectedId) ?? null) : null;
+  const selected = selectedExpense ?? selectedFallback;
+  const openOwnerExpenses = ownerExpenses.filter((e) => e.status !== "reimbursed" && e.status !== "cancelled").length;
+  const outstandingTotal = ownerExpenses.reduce((sum, expense) => sum + toNumber(expense.outstanding_amount), 0);
+  const reimbursedThisMonth = ownerExpenses.reduce((sum, expense) => {
+    const reimbursements = expense.reimbursements ?? [];
+    return sum + reimbursements.reduce((inner, reimbursement) => {
+      const date = new Date(reimbursement.reimbursed_at);
+      const now = new Date();
+      const sameMonth = date.getUTCFullYear() === now.getUTCFullYear() && date.getUTCMonth() === now.getUTCMonth();
+      return sameMonth ? inner + toNumber(reimbursement.amount) : inner;
+    }, 0);
+  }, 0);
+  const receiptLinkedCount = ownerExpenses.filter((expense) => Boolean(expense.receipt_id)).length;
+
+  // Live journal preview calculations (purely client-side, no API needed)
+  const draftGross = toNumber(newDraft.gross_amount);
+  const draftVat = toNumber(newDraft.vat_amount);
+  const draftDeductibleVat = newDraft.is_vat_deductible ? Math.min(draftVat, draftGross) : 0;
+  const draftNet = Math.round((draftGross - draftDeductibleVat) * 100) / 100;
+
+  // Form warnings — non-blocking for drafts, enforced before posting
+  const draftWarnings: string[] = [];
+  if (!newDraft.expense_account) draftWarnings.push("No expense account selected.");
+  if (!newDraft.supplier_name) draftWarnings.push("No supplier selected or entered.");
+  if (!newDraft.receipt_id) draftWarnings.push("No receipt linked. Receipt is required before posting.");
+  if (draftGross > 0 && draftVat > draftGross) draftWarnings.push("VAT amount cannot exceed gross amount.");
+
+  const metrics = [
+    { label: "Outstanding reimbursements", value: formatKr(outstandingTotal), detail: "Posted owner expenses not yet reimbursed" },
+    { label: "Open owner expenses", value: String(openOwnerExpenses), detail: "Draft, posted or partially reimbursed" },
+    { label: "Reimbursed this month", value: formatKr(reimbursedThisMonth), detail: "Sum of reimbursement postings this month" },
+    { label: "Items with receipt", value: String(receiptLinkedCount), detail: "Owner expenses linked to receipt records" },
+  ];
+
+  // Expense accounts are in the 4–9 range; show only those in the account dropdown
+  const expenseAccounts = accounts.filter((a) => /^[456789]/.test(a.account));
+
+  const columns: Array<AdminTableColumn<OwnerExpenseDto>> = [
+    { key: "date",        header: "Date",        render: (expense) => expense.expense_date.slice(0, 10) },
+    { key: "description", header: "Description", render: (expense) => <strong className="text-gray-800">{expense.description}</strong> },
+    { key: "supplier",    header: "Supplier",    render: (expense) => expense.supplier_name ?? "-" },
+    { key: "gross",       header: "Amount",      render: (expense) => formatReceiptAmount(expense.gross_amount, expense.currency), align: "right" },
+    { key: "account",     header: "Account",     render: (expense) => accountLabel(expense.expense_account) },
+    { key: "status",      header: "Status",      render: (expense) => <StatusBadge status={expense.status} /> },
+  ];
+
+  async function handleCreateDraft() {
+    if (!newDraft.description || !newDraft.gross_amount || !newDraft.expense_account) {
+      setOwnerExpenseError("Description, gross amount, and expense account are required.");
+      return;
+    }
+    setOwnerExpenseError(null);
+
+    // If user typed a new supplier name, create/find it before saving the expense
+    let finalSupplierId = newDraft.supplier_id;
+    let finalSupplierName = newDraft.supplier_name;
+
+    if (isNewSupplier && newDraft.supplier_name) {
+      const createResult = await createFinanceSupplier({
+        name: newDraft.supplier_name,
+        default_bas_account: newDraft.expense_account || null,
+      });
+      if (createResult.ok && createResult.data) {
+        finalSupplierId = createResult.data.supplier.id;
+        finalSupplierName = createResult.data.supplier.name;
+        setSuppliers((prev) => {
+          const exists = prev.some((s) => s.id === finalSupplierId);
+          return exists ? prev : [...prev, createResult.data!.supplier];
+        });
+      } else {
+        setOwnerExpenseError(createResult.error ?? "Could not create supplier.");
+        return;
+      }
+    }
+
+    const result = await createOwnerExpense({
+      description: newDraft.description,
+      gross_amount: newDraft.gross_amount,
+      vat_amount: newDraft.vat_amount,
+      expense_date: newDraft.expense_date,
+      expense_account: newDraft.expense_account,
+      supplier_id: finalSupplierId || null,
+      supplier_name: finalSupplierName || null,
+      receipt_id: newDraft.receipt_id || null,
+      notes: newDraft.notes || null,
+      vat_treatment: newDraft.vat_treatment || null,
+      payment_source: newDraft.payment_source,
+      is_vat_deductible: newDraft.is_vat_deductible,
+      reverse_charge: newDraft.reverse_charge,
+    });
+
+    if (result.ok && result.data) {
+      // Persist the chosen account as this supplier's default for next time (existing suppliers only)
+      if (finalSupplierId && newDraft.expense_account && !isNewSupplier) {
+        const supplier = suppliers.find((s) => s.id === finalSupplierId);
+        if (supplier && supplier.default_bas_account !== newDraft.expense_account) {
+          await updateFinanceSupplier(finalSupplierId, { default_bas_account: newDraft.expense_account }).catch(() => {});
+          setSuppliers((prev) =>
+            prev.map((s) => (s.id === finalSupplierId ? { ...s, default_bas_account: newDraft.expense_account } : s)),
+          );
+        }
+      }
+      setShowCreate(false);
+      setSupplierInput("");
+      setIsNewSupplier(false);
+      setSelectedId(result.data.ownerExpense.id);
+      onBackendRefresh();
+      return;
+    }
+    setOwnerExpenseError(result.error ?? "Could not create owner expense draft.");
+  }
+
+  async function handleSaveDraft() {
+    if (!selected || selected.status !== "draft" || isSavingDraft) return;
+    setIsSavingDraft(true);
+    setOwnerExpenseError(null);
+    const result = await updateOwnerExpense(selected.id, {
+      description: selected.description,
+      supplier_name: selected.supplier_name,
+      receipt_id: selected.receipt_id,
+      gross_amount: selected.gross_amount,
+      vat_amount: selected.vat_amount,
+      vat_rate: selected.vat_rate,
+      vat_treatment: selected.vat_treatment,
+      expense_account: selected.expense_account,
+      notes: selected.notes,
+      is_vat_deductible: selected.is_vat_deductible,
+      reverse_charge: selected.reverse_charge,
+      payment_source: selected.payment_source,
+    });
+    if (result.ok && result.data) {
+      setSelectedExpense(result.data.ownerExpense);
+      onBackendRefresh();
+    } else {
+      setOwnerExpenseError(result.error ?? "Could not save draft.");
+    }
+    setIsSavingDraft(false);
+  }
+
+  async function handlePostExpense() {
+    if (!selected || selected.status !== "draft" || isPosting) return;
+    setIsPosting(true);
+    setOwnerExpenseError(null);
+    const result = await postOwnerExpense(selected.id);
+    if (result.ok && result.data) {
+      setSelectedExpense(result.data.ownerExpense);
+      onBackendRefresh();
+    } else {
+      setOwnerExpenseError(result.error ?? "Could not post owner expense.");
+    }
+    setIsPosting(false);
+  }
+
+  async function handleReimburse() {
+    if (!selected || isReimbursing || !reimbursementAmount) return;
+    setIsReimbursing(true);
+    setOwnerExpenseError(null);
+    const result = await reimburseOwnerExpense(selected.id, { amount: reimbursementAmount });
+    if (result.ok && result.data) {
+      setSelectedExpense(result.data.ownerExpense);
+      setReimbursementAmount("");
+      onBackendRefresh();
+    } else {
+      setOwnerExpenseError(result.error ?? "Could not reimburse owner expense.");
+    }
+    setIsReimbursing(false);
+  }
+
+  return (
+    <div className="space-y-6">
+      <FinanceKpiGrid metrics={metrics} />
+      <FilterBar
+        filters={[
+          {
+            label: "Status",
+            value: statusFilter,
+            options: [
+              { label: "All statuses", value: "all" },
+              { label: "Draft", value: "draft" },
+              { label: "Posted", value: "posted" },
+              { label: "Partially reimbursed", value: "partially_reimbursed" },
+              { label: "Reimbursed", value: "reimbursed" },
+              { label: "Cancelled", value: "cancelled" },
+            ],
+            onChange: setStatusFilter,
+          },
+          {
+            label: "Payment source",
+            value: paymentSourceFilter,
+            options: [
+              { label: "All sources", value: "all" },
+              { label: "Owner private", value: "owner_private" },
+              { label: "Company bank", value: "company_bank" },
+            ],
+            onChange: setPaymentSourceFilter,
+          },
+        ]}
+      />
+
+      <div className="flex justify-end">
+        <button
+          className="btn btn-primary inline-flex items-center"
+          type="button"
+          onClick={() => {
+            const next = !showCreate;
+            setShowCreate(next);
+            if (!next) {
+              setSupplierInput("");
+              setIsNewSupplier(false);
+              setSupplierDropdownOpen(false);
+            }
+          }}
+        >
+          <Plus className="mr-2 size-4" aria-hidden="true" />
+          + New Owner Expense
+        </button>
+      </div>
+
+      {showCreate ? (
+        <FinancePanel title="New owner expense draft" description="Register a privately paid business expense. Supplier defaults are applied automatically from saved preferences.">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Supplier
+              <div className="relative">
+                <input
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  placeholder="Search or create supplier…"
+                  value={supplierInput}
+                  autoComplete="off"
+                  onChange={(event) => handleSupplierInputChange(event.target.value)}
+                  onFocus={() => setSupplierDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setSupplierDropdownOpen(false), 160)}
+                />
+                {supplierDropdownOpen ? (
+                  <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                    {supplierMatches.length > 0 ? (
+                      supplierMatches.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-blue-50"
+                          onMouseDown={(e) => { e.preventDefault(); handleSupplierSelect(s.id); }}
+                        >
+                          <span>{s.name}</span>
+                          {s.default_bas_account ? (
+                            <span className="ml-2 text-xs text-gray-400">{accountLabel(s.default_bas_account)}</span>
+                          ) : null}
+                        </button>
+                      ))
+                    ) : supplierInput.trim() ? null : (
+                      <p className="px-4 py-3 text-sm text-gray-400">No suppliers yet. Type a name to create one.</p>
+                    )}
+                    {canCreateSupplier ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-left text-sm font-semibold text-[#2E75BD] hover:bg-blue-50"
+                        onMouseDown={(e) => { e.preventDefault(); handleConfirmNewSupplier(); }}
+                      >
+                        <Plus className="size-3.5" aria-hidden="true" />
+                        Create supplier &ldquo;{supplierInput.trim()}&rdquo;
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+              {isNewSupplier ? (
+                <span className="text-xs text-amber-600">New supplier — will be created when you save the draft.</span>
+              ) : newDraft.supplier_id ? (
+                <span className="text-xs text-emerald-600">Using existing supplier.</span>
+              ) : null}
+            </div>
+
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Receipt
+              <select
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                value={newDraft.receipt_id}
+                onChange={(event) => handleReceiptSelect(event.target.value)}
+              >
+                <option value="">Select receipt…</option>
+                {backendReceipts.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.original_filename ?? r.filename}
+                    {r.supplier ? ` — ${r.supplier}` : ""}
+                    {r.receipt_date ? ` (${r.receipt_date.slice(0, 10)})` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Description
+              <input
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                placeholder="What was purchased?"
+                value={newDraft.description}
+                onChange={(event) => setNewDraft((prev) => ({ ...prev, description: event.target.value }))}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Expense date
+              <input
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                type="date"
+                value={newDraft.expense_date}
+                onChange={(event) => setNewDraft((prev) => ({ ...prev, expense_date: event.target.value }))}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Expense account
+              <select
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                value={newDraft.expense_account}
+                onChange={(event) => setNewDraft((prev) => ({ ...prev, expense_account: event.target.value }))}
+              >
+                <option value="">Select account…</option>
+                {expenseAccounts.map((a) => (
+                  <option key={a.account} value={a.account}>{a.account} — {a.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+                Gross amount (incl. VAT)
+                <input
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  placeholder="48.80"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newDraft.gross_amount}
+                  onChange={(event) => setNewDraft((prev) => ({ ...prev, gross_amount: event.target.value }))}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+                VAT amount
+                <input
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  placeholder="9.76"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newDraft.vat_amount}
+                  onChange={(event) => setNewDraft((prev) => ({ ...prev, vat_amount: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-col justify-end gap-3 text-sm text-gray-600">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={newDraft.is_vat_deductible}
+                  onChange={(event) => setNewDraft((prev) => ({ ...prev, is_vat_deductible: event.target.checked }))}
+                />
+                VAT deductible
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={newDraft.reverse_charge}
+                  onChange={(event) =>
+                    setNewDraft((prev) => ({
+                      ...prev,
+                      reverse_charge: event.target.checked,
+                      is_vat_deductible: !event.target.checked,
+                    }))
+                  }
+                />
+                Reverse charge
+              </label>
+            </div>
+          </div>
+
+          <textarea
+            className="mt-4 min-h-20 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+            placeholder="Internal notes (optional)"
+            value={newDraft.notes}
+            onChange={(event) => setNewDraft((prev) => ({ ...prev, notes: event.target.value }))}
+          />
+
+          {draftWarnings.length > 0 ? (
+            <div className="mt-4 rounded-xl bg-amber-50 p-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-800">Warnings</h4>
+              <ul className="mt-2 space-y-1 text-sm text-amber-700">
+                {draftWarnings.map((w) => <li key={w}>{w}</li>)}
+              </ul>
+            </div>
+          ) : null}
+
+          {newDraft.expense_account && draftGross > 0 ? (() => {
+            const draftLines = draftDeductibleVat > 0
+              ? [
+                  { account: newDraft.expense_account, description: newDraft.description || "Expense", debit: draftNet, credit: 0 },
+                  { account: "2641", description: "Ingående moms", debit: draftDeductibleVat, credit: 0 },
+                  { account: "2018", description: "Egen insättning", debit: 0, credit: draftGross },
+                ]
+              : [
+                  { account: newDraft.expense_account, description: newDraft.description || "Expense", debit: draftGross, credit: 0 },
+                  { account: "2018", description: "Egen insättning", debit: 0, credit: draftGross },
+                ];
+            const totalDebit = draftLines.reduce((sum, l) => sum + l.debit, 0);
+            const totalCredit = draftLines.reduce((sum, l) => sum + l.credit, 0);
+            const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
+            return (
+              <div className="mt-4 rounded-xl border border-gray-100 p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h4 className="text-base font-semibold text-gray-900">Recognition Journal</h4>
+                  <span className={`text-xs font-medium ${balanced ? "text-emerald-600" : "text-red-500"}`}>
+                    {balanced ? "✓ Balanced" : "⚠ Unbalanced"}
+                  </span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+                      <th className="pb-2 text-left">Account</th>
+                      <th className="pb-2 text-left">Description</th>
+                      <th className="pb-2 text-right">Debit</th>
+                      <th className="pb-2 text-right">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {draftLines.map((line, i) => (
+                      <tr key={i} className="text-gray-700">
+                        <td className="py-2 pr-3 font-mono text-xs">{accountLabel(line.account)}</td>
+                        <td className="py-2 pr-3 text-gray-500">{line.description}</td>
+                        <td className="py-2 text-right tabular-nums">{line.debit > 0 ? formatKr(line.debit) : ""}</td>
+                        <td className="py-2 text-right tabular-nums">{line.credit > 0 ? formatKr(line.credit) : ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-200 text-xs font-semibold text-gray-700">
+                      <td className="pt-2" colSpan={2}>Total</td>
+                      <td className="pt-2 text-right tabular-nums">{formatKr(totalDebit)}</td>
+                      <td className="pt-2 text-right tabular-nums">{formatKr(totalCredit)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })() : null}
+
+          <button
+            className="btn btn-primary mt-4"
+            type="button"
+            disabled={!newDraft.description || !newDraft.expense_account || !newDraft.gross_amount}
+            onClick={() => void handleCreateDraft()}
+          >
+            Save Draft
+          </button>
+        </FinancePanel>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+        <AdminTable
+          columns={columns}
+          rows={filteredRows}
+          getRowKey={(expense) => expense.id}
+          emptyMessage="No owner expenses found."
+          onRowClick={(expense) => setSelectedId(expense.id)}
+          isSelected={(expense) => expense.id === selectedId}
+        />
+        <FinancePanel title="Owner expense details" description="Receipt, accounting preview, and reimbursement history.">
+          {isLoadingDetails ? (
+            <p className="text-sm text-gray-500">Loading details...</p>
+          ) : selected ? (
+            <div className="space-y-6">
+              {/* Receipt section */}
+              <div className="rounded-xl border border-gray-100 p-4">
+                <h3 className="mb-3 text-sm font-semibold text-gray-800">Receipt</h3>
+                {selected.receipt ? (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-gray-800">
+                      {selected.receipt.original_filename ?? selected.receipt.filename ?? "Attached receipt"}
+                    </p>
+                    {selected.receipt.receipt_date ? (
+                      <p className="text-xs text-gray-500">Receipt date: {selected.receipt.receipt_date.slice(0, 10)}</p>
+                    ) : (
+                      <p className="text-xs text-gray-400">Uploaded {selected.receipt.created_at.slice(0, 10)}</p>
+                    )}
+                    {selected.status === "draft" && !detailReceiptPicking ? (
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          className="btn btn-primary text-xs"
+                          onClick={() => { setDetailReceiptPicking(true); setDetailReceiptPickId(""); }}
+                        >
+                          Replace Receipt
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-500">No receipt attached</p>
+                    {selected.status === "draft" && !detailReceiptPicking ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary text-xs"
+                        onClick={() => { setDetailReceiptPicking(true); setDetailReceiptPickId(""); }}
+                      >
+                        Attach Receipt
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+                {detailReceiptPicking && selected.status === "draft" ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <select
+                      className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                      value={detailReceiptPickId}
+                      onChange={(e) => setDetailReceiptPickId(e.target.value)}
+                    >
+                      <option value="">Select receipt…</option>
+                      {backendReceipts.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.original_filename ?? r.filename}
+                          {r.supplier ? ` — ${r.supplier}` : ""}
+                          {r.receipt_date ? ` (${r.receipt_date.slice(0, 10)})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-primary py-1 text-xs"
+                        disabled={!detailReceiptPickId}
+                        onClick={() => void handleLinkReceiptToDraft()}
+                      >
+                        Link
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                        onClick={() => { setDetailReceiptPicking(false); setDetailReceiptPickId(""); }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Supplier */}
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Supplier</p>
+                <p className="mt-1 text-base font-semibold text-gray-900">
+                  {selected.supplier?.name ?? selected.supplier_name ?? "—"}
+                </p>
+              </div>
+
+              {/* Amounts, account, status */}
+              <div className="divide-y divide-gray-100">
+                <div className="flex items-center justify-between py-2.5">
+                  <span className="text-sm text-gray-500">Amount</span>
+                  <span className="text-sm font-semibold tabular-nums text-gray-800">{formatKr(selected.gross_amount)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2.5">
+                  <span className="text-sm text-gray-500">VAT</span>
+                  <span className="text-sm font-semibold tabular-nums text-gray-800">{formatKr(selected.vat_amount)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2.5">
+                  <span className="text-sm text-gray-500">Outstanding</span>
+                  <span className="text-sm font-semibold tabular-nums text-gray-800">{formatKr(selected.outstanding_amount)}</span>
+                </div>
+                <div className="flex items-baseline justify-between py-2.5">
+                  <span className="text-sm text-gray-500">Account</span>
+                  <span className="max-w-[60%] text-right text-sm font-semibold text-gray-800">{accountLabel(selected.expense_account)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2.5">
+                  <span className="text-sm text-gray-500">Status</span>
+                  <StatusBadge status={selected.status} />
+                </div>
+              </div>
+
+              {(() => {
+                type JournalLine = { key: string; account: string; description: string; debit: number; credit: number };
+                let journalLines: JournalLine[];
+                if (selected.recognition_lines && selected.recognition_lines.length > 0) {
+                  journalLines = selected.recognition_lines.map((line) => ({
+                    key: line.id,
+                    account: line.account,
+                    description: line.description ?? "",
+                    debit: toNumber(line.debit),
+                    credit: toNumber(line.credit),
+                  }));
+                } else if (selected.is_vat_deductible && toNumber(selected.vat_amount) > 0) {
+                  const ownerAcc = selected.recognition_owner_account ?? "2018";
+                  journalLines = [
+                    { key: "exp", account: selected.expense_account, description: selected.description, debit: toNumber(selected.net_amount), credit: 0 },
+                    { key: "vat", account: "2641", description: "Ingående moms", debit: toNumber(selected.vat_amount), credit: 0 },
+                    { key: "own", account: ownerAcc, description: "Egen insättning", debit: 0, credit: toNumber(selected.gross_amount) },
+                  ];
+                } else {
+                  const ownerAcc = selected.recognition_owner_account ?? "2018";
+                  journalLines = [
+                    { key: "exp", account: selected.expense_account, description: selected.description, debit: toNumber(selected.gross_amount), credit: 0 },
+                    { key: "own", account: ownerAcc, description: "Egen insättning", debit: 0, credit: toNumber(selected.gross_amount) },
+                  ];
+                }
+                const totalDebit = journalLines.reduce((sum, l) => sum + l.debit, 0);
+                const totalCredit = journalLines.reduce((sum, l) => sum + l.credit, 0);
+                const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
+                return (
+                  <div className="rounded-xl border border-gray-100 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <h3 className="text-base font-semibold text-gray-900">Recognition Journal</h3>
+                      <span className={`text-xs font-medium ${balanced ? "text-emerald-600" : "text-red-500"}`}>
+                        {balanced ? "✓ Balanced" : "⚠ Unbalanced"}
+                      </span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
+                          <th className="pb-2 text-left">Account</th>
+                          <th className="pb-2 text-left">Description</th>
+                          <th className="pb-2 text-right">Debit</th>
+                          <th className="pb-2 text-right">Credit</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {journalLines.map((line) => (
+                          <tr key={line.key} className="text-gray-700">
+                            <td className="py-2 pr-3 font-mono text-xs">{accountLabel(line.account)}</td>
+                            <td className="py-2 pr-3 text-gray-500">{line.description}</td>
+                            <td className="py-2 text-right tabular-nums">{line.debit > 0 ? formatKr(line.debit) : ""}</td>
+                            <td className="py-2 text-right tabular-nums">{line.credit > 0 ? formatKr(line.credit) : ""}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-gray-200 text-xs font-semibold text-gray-700">
+                          <td className="pt-2" colSpan={2}>Total</td>
+                          <td className="pt-2 text-right tabular-nums">{formatKr(totalDebit)}</td>
+                          <td className="pt-2 text-right tabular-nums">{formatKr(totalCredit)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              <div className="rounded-xl border border-gray-100 p-4">
+                <h3 className="text-sm font-semibold text-gray-800">History</h3>
+                {(selected.reimbursements ?? []).length > 0 ? (
+                  <div className="mt-3 divide-y divide-gray-50 text-sm">
+                    {(selected.reimbursements ?? []).map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-3 py-2">
+                        <span className="text-gray-500">{item.reimbursed_at.slice(0, 10)} · journal {item.journal_entry_id.slice(0, 8)}</span>
+                        <span className="tabular-nums font-medium text-gray-800">{formatKr(item.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-gray-500">No reimbursement transactions yet.</p>
+                )}
+              </div>
+
+              {selected.status === "draft" ? (
+                <div className="space-y-2">
+                  {!selected.receipt_id && !selected.receipt ? (
+                    <p className="rounded-lg bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-700">
+                      A receipt must be attached before posting. Saving drafts is still allowed.
+                    </p>
+                  ) : null}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" type="button" disabled={isSavingDraft} onClick={() => void handleSaveDraft()}>
+                      {isSavingDraft ? "Saving..." : "Save Draft"}
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      disabled={isPosting || (!selected.receipt_id && !selected.receipt)}
+                      title={!selected.receipt_id && !selected.receipt ? "Attach a receipt before posting" : undefined}
+                      onClick={() => void handlePostExpense()}
+                    >
+                      {isPosting ? "Posting..." : "Post Expense"}
+                    </button>
+                  </div>
+                </div>
+              ) : selected.status === "posted" || selected.status === "partially_reimbursed" ? (
+                <div className="space-y-2">
+                  <input
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                    placeholder={`Reimbursement amount (max ${formatKr(selected.outstanding_amount)})`}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={reimbursementAmount}
+                    onChange={(event) => setReimbursementAmount(event.target.value)}
+                  />
+                  <button className="btn btn-primary w-full" type="button" disabled={isReimbursing || !reimbursementAmount} onClick={() => void handleReimburse()}>
+                    {isReimbursing ? "Posting reimbursement…" : "Reimburse"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">Select an owner expense row to view receipt, amounts, VAT, and history.</p>
+          )}
+          {ownerExpenseError ? (
+            <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{ownerExpenseError}</pre>
+          ) : null}
+        </FinancePanel>
+      </div>
+    </div>
+  );
+}
+
 function ReceiptsTab({
   backendReceipts,
   backendTransactions,
@@ -2847,38 +3813,408 @@ function BookkeepingTab() {
 }
 
 function VatTab() {
+  const currentYear = new Date().getFullYear();
+  const [frequency, setFrequency] = useState<"monthly" | "quarterly" | "yearly">("monthly");
+  const [year, setYear] = useState(String(currentYear));
+  const [periods, setPeriods] = useState<VatPeriodCalculatedDto[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
+  const [report, setReport] = useState<VatReportDto | null>(null);
+  const [declarationBoxes, setDeclarationBoxes] = useState<VatDeclarationBoxesDto | null>(null);
+  const [history, setHistory] = useState<VatPeriodHistoryEventDto[]>([]);
+  const [unlockReason, setUnlockReason] = useState("");
+  const [isLoadingPeriods, setIsLoadingPeriods] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [vatError, setVatError] = useState<string | null>(null);
+
+  const yearNumber = Number.parseInt(year, 10);
+  const selectedPeriod = report?.period ?? periods.find((period) => period.period.id === selectedPeriodId)?.period ?? null;
+  const periodStatus: VatPeriodStatus = selectedPeriod?.status ?? "open";
+  const periodMode = report?.calculation_mode ?? "live";
+
+  const declarationRows = useMemo(() => {
+    if (!declarationBoxes) return [];
+    return [
+      { box: "05", description: "Taxable sales (placeholder)", value: formatKr(declarationBoxes.box_05) },
+      { box: "06", description: "Taxable sales (placeholder)", value: formatKr(declarationBoxes.box_06) },
+      { box: "07", description: "Taxable sales (placeholder)", value: formatKr(declarationBoxes.box_07) },
+      { box: "08", description: "Taxable sales (placeholder)", value: formatKr(declarationBoxes.box_08) },
+      { box: "10", description: "Output VAT 25%", value: formatKr(declarationBoxes.box_10) },
+      { box: "11", description: "Output VAT 12%", value: formatKr(declarationBoxes.box_11) },
+      { box: "12", description: "Output VAT 6%", value: formatKr(declarationBoxes.box_12) },
+      { box: "48", description: "Deductible input VAT", value: formatKr(declarationBoxes.box_48) },
+      { box: "49", description: "VAT payable / refundable", value: formatKr(declarationBoxes.box_49) },
+    ];
+  }, [declarationBoxes]);
+
+  const validation = useMemo(() => {
+    const warnings: string[] = [];
+    const errors: string[] = [];
+    if (!report) return { warnings, errors };
+
+    if (periodMode === "live") warnings.push("Open period values are live-calculated from posted journals and may change until locked.");
+    if (report.summary.non_deductible_vat > 0) warnings.push("Non-deductible input VAT is excluded from deductible VAT totals.");
+    if (declarationBoxes && declarationBoxes.box_05 === 0 && declarationBoxes.box_06 === 0 && declarationBoxes.box_07 === 0 && declarationBoxes.box_08 === 0 && report.summary.output_vat > 0) {
+      warnings.push("Boxes 05-08 are currently placeholders. Review taxable sales mapping before submission.");
+    }
+    if (report.summary.vat_payable > 0 && report.summary.vat_refundable > 0) {
+      errors.push("Invalid VAT state: payable and refundable values are both positive.");
+    }
+    if (!declarationBoxes) errors.push("Declaration values are missing for this period.");
+
+    return { warnings, errors };
+  }, [declarationBoxes, periodMode, report]);
+
+  async function loadPeriodDetails(periodId: string) {
+    setIsLoadingDetails(true);
+    setVatError(null);
+
+    const [reportResult, declarationResult, historyResult] = await Promise.all([
+      getVatPeriodReport(periodId),
+      getVatPeriodDeclaration(periodId),
+      getVatPeriodHistory(periodId),
+    ]);
+
+    if (reportResult.ok && reportResult.data) {
+      setReport(reportResult.data.report);
+    } else {
+      setReport(null);
+      setVatError(reportResult.error ?? "Could not load VAT report.");
+    }
+
+    if (declarationResult.ok && declarationResult.data) {
+      setDeclarationBoxes(declarationResult.data.declaration.boxes);
+    } else {
+      setDeclarationBoxes(null);
+      if (!vatError) setVatError(declarationResult.error ?? "Could not load VAT declaration values.");
+    }
+
+    if (historyResult.ok && historyResult.data) {
+      setHistory(historyResult.data.history);
+    } else {
+      setHistory([]);
+      if (!vatError) setVatError(historyResult.error ?? "Could not load VAT period history.");
+    }
+
+    setIsLoadingDetails(false);
+  }
+
+  async function refreshPeriods(autoEnsure = true) {
+    if (!Number.isFinite(yearNumber)) {
+      setVatError("Year must be a valid number.");
+      return;
+    }
+
+    setIsLoadingPeriods(true);
+    setVatError(null);
+    const listResult = await getVatPeriods({
+      frequency,
+      year: yearNumber,
+      limit: 200,
+    });
+
+    if (listResult.ok && listResult.data) {
+      const rows = listResult.data.periods;
+      if (rows.length > 0) {
+        setPeriods(rows);
+        const preferred = rows.find((row) => row.period.id === selectedPeriodId)?.period.id ?? rows[0]?.period.id ?? null;
+        setSelectedPeriodId(preferred);
+        if (preferred) {
+          await loadPeriodDetails(preferred);
+        } else {
+          setReport(null);
+          setDeclarationBoxes(null);
+          setHistory([]);
+        }
+      } else if (autoEnsure) {
+        const ensurePayload = buildVatPeriodInput(frequency, yearNumber);
+        const ensureResult = await ensureVatPeriod(ensurePayload);
+        if (ensureResult.ok && ensureResult.data) {
+          const refreshed = await getVatPeriods({ frequency, year: yearNumber, limit: 200 });
+          if (refreshed.ok && refreshed.data && refreshed.data.periods.length > 0) {
+            setPeriods(refreshed.data.periods);
+            const id = refreshed.data.periods[0]!.period.id;
+            setSelectedPeriodId(id);
+            await loadPeriodDetails(id);
+          } else {
+            setPeriods([]);
+            setSelectedPeriodId(null);
+            setReport(null);
+            setDeclarationBoxes(null);
+            setHistory([]);
+          }
+        } else {
+          setPeriods([]);
+          setSelectedPeriodId(null);
+          setReport(null);
+          setDeclarationBoxes(null);
+          setHistory([]);
+          setVatError(ensureResult.error ?? "Could not ensure VAT period.");
+        }
+      } else {
+        setPeriods([]);
+        setSelectedPeriodId(null);
+        setReport(null);
+        setDeclarationBoxes(null);
+        setHistory([]);
+      }
+    } else {
+      setVatError(listResult.error ?? "Could not load VAT periods.");
+    }
+
+    setIsLoadingPeriods(false);
+  }
+
+  useEffect(() => {
+    void refreshPeriods(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frequency, year]);
+
+  async function handleSelectPeriod(periodId: string) {
+    setSelectedPeriodId(periodId);
+    await loadPeriodDetails(periodId);
+  }
+
+  async function handleLifecycleAction(
+    action: "calculate" | "lock" | "unlock" | "submit" | "close",
+  ) {
+    if (!selectedPeriodId || isProcessing) return;
+    if (action === "unlock" && !unlockReason.trim()) {
+      setVatError("Unlock reason is required.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setVatError(null);
+
+    const result = action === "calculate"
+      ? await calculateVatPeriod(selectedPeriodId)
+      : action === "lock"
+        ? await lockVatPeriod(selectedPeriodId)
+        : action === "unlock"
+          ? await unlockVatPeriod(selectedPeriodId, unlockReason.trim())
+          : action === "submit"
+            ? await submitVatPeriod(selectedPeriodId)
+            : await closeVatPeriod(selectedPeriodId);
+
+    if (!result.ok) {
+      setVatError(result.error ?? "Could not update VAT period lifecycle.");
+      setIsProcessing(false);
+      return;
+    }
+
+    if (action === "unlock") setUnlockReason("");
+    await refreshPeriods(false);
+    if (selectedPeriodId) await loadPeriodDetails(selectedPeriodId);
+    setIsProcessing(false);
+  }
+
+  const periodColumns: Array<AdminTableColumn<VatPeriodCalculatedDto>> = [
+    { key: "period", header: "Period", render: (row) => <strong className="text-gray-800">{row.period.period_start} - {row.period.period_end}</strong> },
+    { key: "frequency", header: "Frequency", render: (row) => toVatFrequencyLabel(row.period.period_type) },
+    { key: "mode", header: "Mode", render: (row) => row.calculation_mode === "live" ? "Live" : "Snapshot" },
+    { key: "status", header: "Status", render: (row) => <StatusBadge status={row.period.status} /> },
+  ];
+
+  const declarationColumns: Array<AdminTableColumn<{ box: string; description: string; value: string }>> = [
+    { key: "box", header: "Box", render: (row) => <strong className="text-gray-800">{row.box}</strong> },
+    { key: "description", header: "Description", render: (row) => row.description },
+    { key: "value", header: "Value", render: (row) => row.value, align: "right" },
+  ];
+
+  const accountColumns: Array<AdminTableColumn<VatReportDto["breakdownByAccount"][number]>> = [
+    { key: "account", header: "Account", render: (row) => <strong className="text-gray-800">{row.account}</strong> },
+    { key: "name", header: "Name", render: (row) => row.account_name ?? "-" },
+    { key: "output", header: "Output VAT", render: (row) => formatKr(row.output_vat), align: "right" },
+    { key: "input", header: "Input VAT", render: (row) => formatKr(row.input_vat), align: "right" },
+    { key: "deductible", header: "Deductible", render: (row) => formatKr(row.deductible_vat), align: "right" },
+    { key: "non_deductible", header: "Non-deductible", render: (row) => formatKr(row.non_deductible_vat), align: "right" },
+  ];
+
+  const journalColumns: Array<AdminTableColumn<VatReportDto["breakdownByJournal"][number]>> = [
+    { key: "verification", header: "Verification", render: (row) => <strong className="text-gray-800">{row.verification_number ?? row.journal_entry_id.slice(0, 8)}</strong> },
+    { key: "date", header: "Posting date", render: (row) => row.posting_date ?? "-" },
+    { key: "description", header: "Description", render: (row) => row.description ?? "-" },
+    { key: "output", header: "Output VAT", render: (row) => formatKr(row.output_vat), align: "right" },
+    { key: "input", header: "Input VAT", render: (row) => formatKr(row.input_vat), align: "right" },
+  ];
+
+  const historyColumns: Array<AdminTableColumn<VatPeriodHistoryEventDto>> = [
+    { key: "at", header: "Date", render: (row) => row.at.slice(0, 10) },
+    { key: "action", header: "Action", render: (row) => <StatusBadge status={row.action} /> },
+    { key: "from", header: "From", render: (row) => row.from_status ?? "-" },
+    { key: "to", header: "To", render: (row) => row.to_status },
+    { key: "actor", header: "Actor", render: (row) => row.actor ?? "-" },
+    { key: "reason", header: "Reason", render: (row) => row.reason ?? "-" },
+  ];
+
+  const kpiMetrics = report
+    ? [
+        { label: "Output VAT", value: formatKr(report.summary.output_vat), detail: "From posted journals only" },
+        { label: "Input VAT", value: formatKr(report.summary.input_vat), detail: "Total input VAT in period" },
+        {
+          label: report.summary.vat_payable > 0 ? "VAT payable" : "VAT refundable",
+          value: formatKr(report.summary.vat_payable > 0 ? report.summary.vat_payable : report.summary.vat_refundable),
+          detail: report.summary.vat_payable > 0 ? "Amount due to Skatteverket" : "Refund amount",
+        },
+        { label: "Calculation mode", value: periodMode === "live" ? "Live" : "Snapshot", detail: periodStatus === "open" ? "Open period" : "Locked lifecycle state" },
+      ]
+    : [
+        { label: "Output VAT", value: "-", detail: "No period selected" },
+        { label: "Input VAT", value: "-", detail: "No period selected" },
+        { label: "VAT payable / refundable", value: "-", detail: "No period selected" },
+        { label: "Calculation mode", value: "-", detail: "No period selected" },
+      ];
+
+  const periodFilterOptions = [
+    { label: "Monthly", value: "monthly" },
+    { label: "Quarterly", value: "quarterly" },
+    { label: "Yearly", value: "yearly" },
+  ];
+  const yearFilterOptions = Array.from({ length: 6 }, (_, index) => currentYear - 3 + index)
+    .map((value) => ({ label: String(value), value: String(value) }));
+
   return (
     <div className="space-y-6">
-      <FinanceKpiGrid metrics={vatSummary.metrics} />
-      <div className="grid gap-6 xl:grid-cols-2">
-        <FinancePanel title="VAT summary">
-          <FinanceDefinitionList rows={vatSummary.rows} />
-          <button className="btn btn-primary mt-5" type="button">Generate VAT report</button>
-        </FinancePanel>
-        <FinancePanel title="Skatteverket boxes" description="Demo mapping only. Review before using outside KWStudio Admin.">
-          <div className="space-y-3">
-            {vatSummary.boxes.map((box) => (
-              <div key={box.box} className="rounded-xl border border-gray-100 p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-800">{box.box}</h3>
-                    <p className="mt-1 text-sm leading-6 text-gray-500">{box.description}</p>
-                  </div>
-                  <strong className="text-sm text-gray-800">{box.value}</strong>
-                </div>
+      <FilterBar
+        filters={[
+          {
+            label: "Frequency",
+            value: frequency,
+            options: periodFilterOptions,
+            onChange: (value) => setFrequency(value as "monthly" | "quarterly" | "yearly"),
+          },
+          {
+            label: "Year",
+            value: year,
+            options: yearFilterOptions,
+            onChange: setYear,
+          },
+        ]}
+      />
+
+      {vatError ? (
+        <pre className="overflow-auto whitespace-pre-wrap rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">{vatError}</pre>
+      ) : null}
+
+      <FinancePanel title="VAT periods" description="Select lifecycle period and status for VAT reporting.">
+        {isLoadingPeriods ? (
+          <p className="text-sm text-gray-500">Loading VAT periods...</p>
+        ) : periods.length > 0 ? (
+          <>
+            <AdminTable
+              columns={periodColumns}
+              rows={periods}
+              getRowKey={(row) => row.period.id}
+              isSelected={(row) => row.period.id === selectedPeriodId}
+              onRowClick={(row) => void handleSelectPeriod(row.period.id)}
+            />
+            {selectedPeriod ? (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <span className="text-sm text-gray-600">Current status:</span>
+                <StatusBadge status={selectedPeriod.status} />
+                <span className="text-sm text-gray-500">
+                  {selectedPeriod.period_start} - {selectedPeriod.period_end}
+                </span>
               </div>
-            ))}
-          </div>
-        </FinancePanel>
-      </div>
-      <FinancePanel title="Status">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge status="Draft" />
-          <StatusBadge status="Ready" />
-          <StatusBadge status="Pending" />
-        </div>
-        <p className="mt-4 text-sm leading-6 text-gray-500">Draft. Ready for review. Not submitted.</p>
+            ) : null}
+          </>
+        ) : (
+          <EmptyState title="No VAT periods" description="No periods exist for selected frequency/year. Use Ensure to create one." />
+        )}
       </FinancePanel>
+
+      <FinanceKpiGrid metrics={kpiMetrics} />
+
+      {isLoadingDetails ? (
+        <FinancePanel title="VAT details"><p className="text-sm text-gray-500">Loading VAT report...</p></FinancePanel>
+      ) : !report ? (
+        <FinancePanel title="VAT details"><EmptyState title="No VAT data" description="Select a VAT period to load report and declaration values." /></FinancePanel>
+      ) : (
+        <>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <FinancePanel title="Lifecycle actions" description="Run lifecycle actions for the selected VAT period.">
+              <div className="flex flex-wrap gap-2">
+                <button className="btn btn-secondary" type="button" disabled={isProcessing || periodStatus !== "open"} onClick={() => void handleLifecycleAction("calculate")}>Calculate</button>
+                <button className="btn btn-primary" type="button" disabled={isProcessing || periodStatus !== "open"} onClick={() => void handleLifecycleAction("lock")}>Lock period</button>
+                <button className="btn btn-secondary" type="button" disabled={isProcessing || periodStatus !== "locked"} onClick={() => void handleLifecycleAction("submit")}>Submit</button>
+                <button className="btn btn-secondary" type="button" disabled={isProcessing || periodStatus !== "submitted"} onClick={() => void handleLifecycleAction("close")}>Close</button>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                <input
+                  className="h-11 rounded-lg border border-gray-200 px-4 text-sm"
+                  placeholder="Unlock reason"
+                  value={unlockReason}
+                  onChange={(event) => setUnlockReason(event.target.value)}
+                  disabled={isProcessing || periodStatus !== "locked"}
+                />
+                <button className="btn btn-secondary" type="button" disabled={isProcessing || periodStatus !== "locked" || !unlockReason.trim()} onClick={() => void handleLifecycleAction("unlock")}>
+                  Unlock
+                </button>
+              </div>
+              <p className="mt-4 text-sm text-gray-500">
+                {periodStatus === "open"
+                  ? "Open periods are live-calculated."
+                  : "Locked, submitted and closed periods are snapshot/read-only."}
+              </p>
+            </FinancePanel>
+
+            <FinancePanel title="Validation warnings / errors">
+              {validation.errors.length === 0 && validation.warnings.length === 0 ? (
+                <p className="text-sm text-gray-500">No validation warnings or errors.</p>
+              ) : null}
+              {validation.warnings.length > 0 ? (
+                <div className="rounded-lg bg-amber-50 p-3">
+                  <h3 className="text-sm font-semibold text-amber-900">Warnings</h3>
+                  <ul className="mt-2 space-y-1 text-sm text-amber-800">
+                    {validation.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+              {validation.errors.length > 0 ? (
+                <div className="mt-3 rounded-lg bg-red-50 p-3">
+                  <h3 className="text-sm font-semibold text-red-900">Errors</h3>
+                  <ul className="mt-2 space-y-1 text-sm text-red-800">
+                    {validation.errors.map((error) => <li key={error}>{error}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+            </FinancePanel>
+          </div>
+
+          <FinancePanel title="VAT declaration boxes" description="Swedish declaration scope: 05-08, 10-12, 48, 49.">
+            {declarationRows.length > 0 ? (
+              <AdminTable columns={declarationColumns} rows={declarationRows} getRowKey={(row) => row.box} />
+            ) : (
+              <EmptyState title="No declaration values" description="Declaration values are not available for this period." />
+            )}
+          </FinancePanel>
+
+          <FinancePanel title="Breakdown by account">
+            {report.breakdownByAccount.length > 0 ? (
+              <AdminTable columns={accountColumns} rows={report.breakdownByAccount} getRowKey={(row) => row.account} />
+            ) : (
+              <EmptyState title="No VAT accounts" description="No VAT-related account movement found in this period." />
+            )}
+          </FinancePanel>
+
+          <FinancePanel title="Journal references">
+            {report.breakdownByJournal.length > 0 ? (
+              <AdminTable columns={journalColumns} rows={report.breakdownByJournal} getRowKey={(row) => row.journal_entry_id} />
+            ) : (
+              <EmptyState title="No journal references" description="No VAT journal references were returned for this period." />
+            )}
+          </FinancePanel>
+
+          <FinancePanel title="History">
+            {history.length > 0 ? (
+              <AdminTable columns={historyColumns} rows={history} getRowKey={(row) => `${row.at}-${row.action}`} />
+            ) : (
+              <EmptyState title="No history yet" description="Lifecycle history is empty for this period." />
+            )}
+          </FinancePanel>
+        </>
+      )}
     </div>
   );
 }
@@ -3167,6 +4503,7 @@ function renderFinanceTab(
     backendImports: FinanceImportBatchDto[];
     backendTransactions: FinanceTransaction[];
     backendReceipts: FinanceReceiptDto[];
+    backendOwnerExpenses: OwnerExpenseDto[];
     onBackendRefresh: () => void;
     onOpenTab: (tabId: FinanceTabId) => void;
     importResultState: FinanceImportResultDto | null;
@@ -3193,6 +4530,15 @@ function renderFinanceTab(
   }
   if (activeTab === "invoices") return <InvoicesFinanceTab />;
   if (activeTab === "expenses") return <ExpensesFinanceTab />;
+  if (activeTab === "owner-expenses") {
+    return (
+      <OwnerExpensesTab
+        ownerExpenses={context.backendOwnerExpenses}
+        backendReceipts={context.backendReceipts}
+        onBackendRefresh={context.onBackendRefresh}
+      />
+    );
+  }
   if (activeTab === "receipts") {
     return (
       <ReceiptsTab
@@ -3217,6 +4563,7 @@ export function FinancePage() {
   const [backendImports, setBackendImports] = useState<FinanceImportBatchDto[]>([]);
   const [backendTransactions, setBackendTransactions] = useState<FinanceTransaction[]>([]);
   const [backendReceipts, setBackendReceipts] = useState<FinanceReceiptDto[]>([]);
+  const [backendOwnerExpenses, setBackendOwnerExpenses] = useState<OwnerExpenseDto[]>([]);
   const [backendRefreshKey, setBackendRefreshKey] = useState(0);
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -3259,8 +4606,9 @@ export function FinancePage() {
       getFinanceImports(),
       getFinanceTransactions({ limit: 200 }),
       getFinanceReceipts({ limit: 100, includeCandidates: true }),
+      getOwnerExpenses({ limit: 200 }),
     ])
-      .then(([importsResult, transactionsResult, receiptsResult]) => {
+      .then(([importsResult, transactionsResult, receiptsResult, ownerExpensesResult]) => {
         if (!isMounted) return;
 
         if (importsResult.ok && importsResult.data) {
@@ -3273,6 +4621,10 @@ export function FinancePage() {
 
         if (receiptsResult.ok && receiptsResult.data) {
           setBackendReceipts(receiptsResult.data.receipts);
+        }
+
+        if (ownerExpensesResult.ok && ownerExpensesResult.data) {
+          setBackendOwnerExpenses(ownerExpensesResult.data.ownerExpenses ?? []);
         }
       })
       .catch((error) => {
@@ -3318,6 +4670,7 @@ export function FinancePage() {
         backendImports,
         backendTransactions,
         backendReceipts,
+        backendOwnerExpenses,
         onBackendRefresh: () => setBackendRefreshKey((value) => value + 1),
         onOpenTab: openFinanceTab,
         importResultState,

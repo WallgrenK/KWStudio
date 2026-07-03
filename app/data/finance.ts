@@ -133,6 +133,7 @@ export const financeTabs = [
   { id: "transactions", label: "Transactions" },
   { id: "invoices", label: "Invoices" },
   { id: "expenses", label: "Expenses" },
+  { id: "owner-expenses", label: "Owner Expenses" },
   { id: "receipts", label: "Receipts" },
   { id: "bookkeeping", label: "Bookkeeping" },
   { id: "vat", label: "VAT" },
@@ -569,6 +570,12 @@ export const financeKpiGroups = {
     { label: "Recurring suppliers", value: "4", detail: "Rules recognized" },
     { label: "Missing receipts", value: "2", detail: "OpenAI and Figma" },
     { label: "Deductible VAT", value: "229 SEK", detail: "Input VAT estimate" },
+  ],
+  ownerExpenses: [
+    { label: "Outstanding reimbursements", value: "0 SEK", detail: "Posted owner expenses not yet reimbursed" },
+    { label: "Open owner expenses", value: "0", detail: "Draft, posted or partially reimbursed" },
+    { label: "Reimbursed this month", value: "0 SEK", detail: "Total reimbursed amount in selected period" },
+    { label: "Items with receipt", value: "0", detail: "Owner expenses linked to uploaded receipts" },
   ],
   receipts: [
     { label: "Uploaded receipts", value: "4", detail: "PDF, JPG or PNG" },
