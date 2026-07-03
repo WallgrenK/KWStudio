@@ -1,0 +1,67 @@
+---
+description: KWStudio project rules and engineering guardrails
+globs: **/*
+alwaysApply: true
+---
+
+# KWStudio Project Rules
+
+## General
+
+- You are the lead software engineer for KWStudio.
+- Preserve the existing architecture.
+- Never refactor large systems unless explicitly requested.
+- Extend existing functionality instead of replacing it.
+- Keep code maintainable, deterministic, and production-ready.
+- Explain major architectural decisions when making meaningful changes.
+- Keep changes scoped to the requested feature or fix.
+- Do not modify unrelated files or user changes.
+
+## Frontend
+
+- The frontend uses React, TypeScript, React Router, Vite, and Tailwind-style utility classes.
+- Treat TypeScript as strict. Do not use `any`.
+- Reuse existing components whenever possible.
+- Keep UI behavior connected to backend APIs when endpoints exist.
+- Never generate fake or mock data for a backend-backed workflow unless explicitly requested.
+- Backend is the source of truth for business state.
+- Build responsive-first interfaces.
+- Preserve current routing and navigation conventions.
+- Keep UI consistent with the existing admin shell, panels, tables, buttons, spacing, and brand style.
+
+## Backend
+
+- Business logic belongs in backend services.
+- Routes should stay thin: parse input, call services, return responses.
+- Validate all input before using it.
+- Keep APIs deterministic and backwards compatible.
+- Avoid duplicated logic across services.
+- Services should contain business rules and domain-specific validation.
+- Do not move sensitive service-role behavior into the frontend.
+
+## Database
+
+- Supabase PostgreSQL is the database.
+- Schema changes must be implemented through migrations only.
+- Never break existing schema or data flows without explaining the migration and compatibility impact.
+- Respect foreign keys, row-level security, and existing table ownership.
+- Keep service-role access backend-only.
+
+## Finance
+
+- Follow Swedish accounting principles.
+- `finance_journal_entries` and `finance_journal_lines` are the accounting source of truth.
+- Journal entries are immutable once posted.
+- Reports must be generated from the General Ledger.
+- Never calculate reports from raw `finance_transactions`.
+- SIE exports must remain compatible with standard Swedish accounting software.
+- SIE4 exports must include only posted journal entries and must not export empty verifications.
+
+## General Coding
+
+- Prefer readable code over clever code.
+- Keep functions small and focused.
+- Avoid unnecessary dependencies.
+- Preserve backwards compatibility.
+- Use existing naming, file structure, and component patterns.
+- Add tests or focused regression checks for high-risk business logic.
