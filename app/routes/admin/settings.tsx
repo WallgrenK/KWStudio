@@ -1,1 +1,1 @@
-export { SettingsPage as default } from "./_PageViews";
+export { SettingsPage as default } from "./settings/SettingsPage";

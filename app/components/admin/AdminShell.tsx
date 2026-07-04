@@ -7,7 +7,9 @@ import { AdminSidebar } from "~/components/admin/AdminSidebar";
 import { PageHeader } from "~/components/admin/PageHeader";
 import { SidebarProvider, useSidebar } from "~/components/admin/SidebarContext";
 import { useAdminAuth } from "~/hooks/useAdminAuth";
+import { useUserProfile } from "~/hooks/useUserProfile";
 import { isSupabaseConfigured } from "~/lib/supabase";
+import { isPortalApiConfigured } from "~/services/portalApi";
 
 type AdminShellProps = {
   eyebrow?: string;
@@ -29,6 +31,7 @@ function AdminShellContent({
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const navigate = useNavigate();
   const auth = useAdminAuth();
+  const userProfile = useUserProfile(Boolean(auth.session) && isPortalApiConfigured);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -41,7 +44,15 @@ function AdminShellContent({
     }
   }, [auth.loading, auth.session, navigate]);
 
-  if (auth.loading || !isSupabaseConfigured || !auth.session) {
+  useEffect(() => {
+    if (auth.loading || userProfile.loading || !auth.session) return;
+
+    if (userProfile.profile?.role === "client") {
+      navigate("/portal/dashboard", { replace: true });
+    }
+  }, [auth.loading, navigate, userProfile.loading, userProfile.profile?.role, auth.session]);
+
+  if (auth.loading || userProfile.loading || !isSupabaseConfigured || !auth.session) {
     return (
       <div className="kw-admin-root">
         <div className="admin-auth-page">

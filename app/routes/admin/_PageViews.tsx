@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { AlertCircle, ArrowRight, CheckCircle2, Download, FileCheck2, Plus, ReceiptText, Upload } from "lucide-react";
 import { AdminTabs as FinanceTabs } from "~/components/admin/AdminTabs";
 import { AdminShell } from "~/components/admin/AdminShell";
@@ -23,6 +23,7 @@ import { ScoreCard } from "~/components/admin/ScoreCard";
 import { StatusBadge } from "~/components/admin/StatusBadge";
 import { TaskList } from "~/components/admin/TaskList";
 import { Timeline } from "~/components/admin/Timeline";
+import { PortalAccessPanel } from "~/components/admin/clients/PortalAccessPanel";
 import { LeadPreviewPanel } from "~/components/admin/leads/LeadPreviewPanel";
 import { type RecommendedPackageName } from "~/components/admin/leads/LeadRecommendedPackage";
 import { type LeadScoreBreakdownItem } from "~/components/admin/leads/LeadScoreBreakdown";
@@ -60,7 +61,6 @@ import {
   scbImportStatus,
   scbLeadFinderFilters,
   seoItems,
-  settingsProfile,
   upcomingMeetings,
   uptimeMonitors,
   websiteHealthMetrics,
@@ -174,9 +174,7 @@ import {
   closeVatPeriod,
   getVatPeriodHistory,
   getTaxEstimation,
-  getTaxSettings,
   postTaxEstimationScenario,
-  updateTaxSettings,
   importRevolutCsv,
   isFinanceApiConfigured,
   matchFinanceReceipt,
@@ -206,7 +204,6 @@ import {
   type TaxForecastMode,
   type TaxScenarioDeltaDto,
   type TaxScenarioDeltaType,
-  type TaxSettingsDto,
   type TaxValidationIssueDto,
   type TaxValidationResultDto,
 } from "~/services/financeApi";
@@ -1839,6 +1836,9 @@ export function ClientsPage() {
       </div>
       <FilterBar search={query} onSearchChange={setQuery} searchPlaceholder="Search clients, contacts or projects" />
       <AdminTable columns={columns} rows={rows} getRowKey={(client) => client.id} />
+      <div className="mt-6">
+        <PortalAccessPanel />
+      </div>
     </AdminShell>
   );
 }
@@ -4174,36 +4174,6 @@ function formatAssumptionValue(value: string | number | null) {
   return value;
 }
 
-type TaxSettingsFormState = {
-  municipality_code: string;
-  municipal_tax_rate: string;
-  church_tax_enabled: boolean;
-  church_tax_rate: string;
-  egenavgifter_rate: string;
-  state_tax_enabled: boolean;
-  state_tax_rate: string;
-  state_tax_threshold: string;
-  tax_reserve_account: string;
-  operating_bank_account: string;
-  forecast_default_mode: TaxForecastMode;
-};
-
-function settingsToFormState(settings: TaxSettingsDto): TaxSettingsFormState {
-  return {
-    municipality_code: settings.municipality_code ?? "",
-    municipal_tax_rate: settings.municipal_tax_rate !== null ? String(settings.municipal_tax_rate) : "",
-    church_tax_enabled: settings.church_tax_enabled,
-    church_tax_rate: settings.church_tax_rate !== null ? String(settings.church_tax_rate) : "",
-    egenavgifter_rate: settings.egenavgifter_rate !== null ? String(settings.egenavgifter_rate) : "",
-    state_tax_enabled: settings.state_tax_enabled,
-    state_tax_rate: settings.state_tax_rate !== null ? String(settings.state_tax_rate) : "",
-    state_tax_threshold: settings.state_tax_threshold !== null ? String(settings.state_tax_threshold) : "",
-    tax_reserve_account: settings.tax_reserve_account,
-    operating_bank_account: settings.operating_bank_account,
-    forecast_default_mode: settings.forecast_default_mode,
-  };
-}
-
 function parseOptionalRate(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -4254,6 +4224,7 @@ function scenarioRowsToDeltas(rows: ScenarioRowFormState[]): TaxScenarioDeltaDto
 }
 
 function TaxesTab() {
+  const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
   const defaultAsOf = new Date().toISOString().slice(0, 10);
   const [year, setYear] = useState(String(currentYear));
@@ -4261,13 +4232,9 @@ function TaxesTab() {
   const [forecastMode, setForecastMode] = useState<TaxForecastMode>("ytd_linear");
   const [manualAnnualProfit, setManualAnnualProfit] = useState("");
   const [estimate, setEstimate] = useState<TaxEstimationResponseDto | null>(null);
-  const [settingsForm, setSettingsForm] = useState<TaxSettingsFormState | null>(null);
   const [validation, setValidation] = useState<TaxValidationResultDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
   const [scenarioRows, setScenarioRows] = useState<ScenarioRowFormState[]>([createScenarioRow()]);
   const [scenarioResult, setScenarioResult] = useState<TaxEstimationScenarioResponseDto | null>(null);
@@ -4291,16 +4258,6 @@ function TaxesTab() {
     ],
     [],
   );
-
-  async function loadSettings() {
-    const result = await getTaxSettings();
-    if (result.ok && result.data) {
-      setSettingsForm(settingsToFormState(result.data.settings));
-      return result.data.settings;
-    }
-    setSettingsError(result.error ?? "Could not load tax settings.");
-    return null;
-  }
 
   async function loadEstimate() {
     setIsLoading(true);
@@ -4339,7 +4296,6 @@ function TaxesTab() {
   }
 
   async function refreshAll() {
-    await loadSettings();
     await loadEstimate();
   }
 
@@ -4387,39 +4343,6 @@ function TaxesTab() {
 
   function updateScenarioRow(id: string, patch: Partial<ScenarioRowFormState>) {
     setScenarioRows((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
-  }
-
-  async function handleSaveSettings(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!settingsForm) return;
-
-    setIsSavingSettings(true);
-    setSettingsError(null);
-    setSettingsMessage(null);
-
-    const result = await updateTaxSettings({
-      municipality_code: settingsForm.municipality_code.trim() || null,
-      municipal_tax_rate: parseOptionalRate(settingsForm.municipal_tax_rate),
-      church_tax_enabled: settingsForm.church_tax_enabled,
-      church_tax_rate: parseOptionalRate(settingsForm.church_tax_rate),
-      egenavgifter_rate: parseOptionalRate(settingsForm.egenavgifter_rate),
-      state_tax_enabled: settingsForm.state_tax_enabled,
-      state_tax_rate: parseOptionalRate(settingsForm.state_tax_rate),
-      state_tax_threshold: parseOptionalRate(settingsForm.state_tax_threshold),
-      tax_reserve_account: settingsForm.tax_reserve_account.trim(),
-      operating_bank_account: settingsForm.operating_bank_account.trim(),
-      forecast_default_mode: settingsForm.forecast_default_mode,
-    });
-
-    if (result.ok && result.data) {
-      setSettingsForm(settingsToFormState(result.data.settings));
-      setSettingsMessage("Tax settings saved.");
-      await loadEstimate();
-    } else {
-      setSettingsError(result.error ?? "Could not save tax settings.");
-    }
-
-    setIsSavingSettings(false);
   }
 
   const taxKpiMetrics = estimate
@@ -4612,7 +4535,7 @@ function TaxesTab() {
       {setupRequired ? (
         <FinanceSetupBanner
           title="Setup required"
-          description="Tax estimation could not run because required settings or posted data are missing. Update the settings below and save to retry."
+          description="Tax estimation could not run because required settings or posted data are missing. Configure tax settings in Settings → Tax, then retry."
           error={loadError}
         />
       ) : null}
@@ -4886,72 +4809,19 @@ function TaxesTab() {
         </div>
       </FinancePanel>
 
-      <FinancePanel title="Tax settings" description="Saved settings are used for rates, accounts, and default forecast mode.">
-        {settingsForm ? (
-          <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void handleSaveSettings(event)}>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-              Municipality code
-              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.municipality_code} onChange={(event) => setSettingsForm({ ...settingsForm, municipality_code: event.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-              Municipal tax rate (decimal)
-              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.municipal_tax_rate} onChange={(event) => setSettingsForm({ ...settingsForm, municipal_tax_rate: event.target.value })} placeholder="0.32" />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
-              <input type="checkbox" checked={settingsForm.church_tax_enabled} onChange={(event) => setSettingsForm({ ...settingsForm, church_tax_enabled: event.target.checked })} />
-              Church tax enabled
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-              Church tax rate (decimal)
-              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.church_tax_rate} onChange={(event) => setSettingsForm({ ...settingsForm, church_tax_rate: event.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-              Egenavgifter rate (decimal)
-              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.egenavgifter_rate} onChange={(event) => setSettingsForm({ ...settingsForm, egenavgifter_rate: event.target.value })} placeholder="0.2897" />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
-              <input type="checkbox" checked={settingsForm.state_tax_enabled} onChange={(event) => setSettingsForm({ ...settingsForm, state_tax_enabled: event.target.checked })} />
-              State income tax enabled
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-              State tax rate (decimal)
-              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.state_tax_rate} onChange={(event) => setSettingsForm({ ...settingsForm, state_tax_rate: event.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-              State tax threshold (SEK)
-              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.state_tax_threshold} onChange={(event) => setSettingsForm({ ...settingsForm, state_tax_threshold: event.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-              Tax reserve account
-              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.tax_reserve_account} onChange={(event) => setSettingsForm({ ...settingsForm, tax_reserve_account: event.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
-              Operating bank account
-              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.operating_bank_account} onChange={(event) => setSettingsForm({ ...settingsForm, operating_bank_account: event.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500 md:col-span-2">
-              Default forecast mode
-              <select
-                className="h-11 rounded-lg border border-gray-200 px-4 text-sm"
-                value={settingsForm.forecast_default_mode}
-                onChange={(event) => setSettingsForm({ ...settingsForm, forecast_default_mode: event.target.value as TaxForecastMode })}
-              >
-                {forecastModeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-              <button className="btn btn-primary" type="submit" disabled={isSavingSettings}>
-                {isSavingSettings ? "Saving..." : "Save tax settings"}
-              </button>
-              {settingsMessage ? <span className="text-sm text-emerald-700">{settingsMessage}</span> : null}
-              {settingsError ? <span className="text-sm text-red-700">{settingsError}</span> : null}
-            </div>
-          </form>
-        ) : (
-          <FinanceLoadingMessage message="Loading tax settings…" />
-        )}
+      <FinancePanel title="Tax configuration" description="Rates, accounts, and forecast defaults are managed in Settings.">
+        <div className="rounded-xl border border-[#eff6ff] bg-[#eff6ff]/40 p-4">
+          <p className="text-sm leading-6 text-gray-700">
+            Manage tax configuration in Settings → Tax.
+          </p>
+          <button
+            className="btn btn-primary mt-4"
+            type="button"
+            onClick={() => navigate("/admin/settings", { state: { category: "tax" } })}
+          >
+            Open tax settings
+          </button>
+        </div>
       </FinancePanel>
     </div>
   );
@@ -5522,18 +5392,3 @@ export function EmailPage() {
   );
 }
 
-export function SettingsPage() {
-  return (
-    <AdminShell title="Settings" description="Profile, company, brand and workspace preferences for KWStudio admin.">
-      <div className="grid gap-6 xl:grid-cols-2">
-        <FormCard title="General"><div className="space-y-4"><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.studioName} /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.email} /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.timezone} /></div></FormCard>
-        <FormCard title="Company"><div className="space-y-4"><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue="KWStudio AB" /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.location} /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue="Web design and development" /></div></FormCard>
-        <FormCard title="Branding"><div className="space-y-4"><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue={settingsProfile.brandColor} /><input className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm" defaultValue="Inter" /></div></FormCard>
-        <FormCard title="Notifications"><div className="space-y-4">{["Weekly summaries", "Lead reminders", "Launch alerts"].map((preference) => <label key={preference} className="flex items-center justify-between rounded-lg border border-gray-100 p-3 text-sm font-medium text-gray-700"><span>{preference}</span><input type="checkbox" defaultChecked /></label>)}</div></FormCard>
-        <Panel title="Integrations"><div className="grid gap-3">{["Supabase", "Email", "Analytics", "Invoicing"].map((item) => <div key={item} className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 text-sm"><span className="font-medium text-gray-700">{item}</span><span className="text-gray-500">Coming soon</span></div>)}</div></Panel>
-        <Panel title="API Keys"><p className="text-sm leading-6 text-gray-500">API key storage is disabled in this static demo. No secrets are shown or stored.</p></Panel>
-        <Panel title="Security"><p className="text-sm leading-6 text-gray-500">Authentication, roles and audit logs will be configured when the admin is connected to Supabase.</p></Panel>
-      </div>
-    </AdminShell>
-  );
-}
