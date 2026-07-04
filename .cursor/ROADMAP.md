@@ -46,30 +46,50 @@ TODO:
 
 - Confirm database schema and exact accounting treatment.
 
-### 9. VAT Reporting
+### 9. VAT Reporting ✅
 
-Build production-ready Swedish VAT reporting workflows.
+Production-ready Swedish VAT reporting workflows are implemented.
 
-Expected scope:
+Scope delivered:
 
-- VAT boxes.
-- VAT period validation.
-- Locking behavior.
-- Auditability.
-- Export or reporting format if required.
+- VAT boxes and period validation.
+- Locking and lifecycle behavior.
+- Cross-report and SIE compatibility regression coverage.
 
-### 10. Tax Estimation
+### 10. Tax Estimation ✅
 
-Add tax estimation based on posted financial data.
+Swedish Tax Estimation for Enskild Firma is implemented (Priority 10 complete).
 
-Expected scope:
+Scope delivered:
 
-- Configurable assumptions.
-- Clear disclaimers.
-- Separation from statutory filing.
-- Dashboard summaries.
+- Pure tax, forecast, validation, and cash planning engines.
+- `finance_tax_settings` migration and GET/PATCH settings API.
+- Orchestrator wired to posted journals, income statement, trial balance, and VAT YTD.
+- Live TaxesTab UI with dual KPI grids, confidence badge, scenario calculator.
+- Full 18-scenario regression matrix (`npm run test:tax`).
 
-### 11. Bank Sync
+Explicit non-goals (future):
+
+- Skatteverket filing / NE XML.
+- Municipality live lookup.
+- Aktiebolag tax estimation.
+- Live external tax rate feeds.
+
+### 10.8 Finance Stabilization ✅
+
+Finance module UX and maintainability pass before Bank Sync.
+
+Scope delivered:
+
+- Centralized formatting (`app/lib/financeFormat.ts`).
+- Shared loading, error, setup, and validation UI components.
+- Consistent `StatusBadge` registry for finance states.
+- Page-level finance API load feedback with retry.
+- VAT detail error aggregation fix (no stale closure drops).
+- Deduplicated owner expense journal preview table.
+- Removed unused imports and local duplicate formatters.
+
+### 11. Bank Sync (Next)
 
 Add direct bank sync when a provider is selected.
 

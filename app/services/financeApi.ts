@@ -767,3 +767,374 @@ export function getVatPeriodHistory(id: string) {
     history_supported: true;
   }>(`/finance/vat/periods/${id}/history`);
 }
+
+export type TaxForecastMode = "ytd_only" | "ytd_linear" | "manual" | "scenario";
+export type TaxForecastConfidence = "low" | "medium" | "high";
+export type TaxBusinessType = "enskild_firma" | "aktiebolag";
+
+export type TaxValidationIssueDto = {
+  code: string;
+  severity: "info" | "warning" | "error";
+  message: string;
+  affected?: {
+    field?: string;
+    source?: string;
+    account?: string;
+    month?: string;
+  };
+  suggested_fix?: string;
+};
+
+export type TaxValidationResultDto = {
+  ok: boolean;
+  has_errors: boolean;
+  has_warnings: boolean;
+  errors: TaxValidationIssueDto[];
+  warnings: TaxValidationIssueDto[];
+  issues: TaxValidationIssueDto[];
+};
+
+export type TaxSummaryDto = {
+  estimated_annual_profit: number;
+  estimated_taxable_profit: number;
+  estimated_self_employment_contributions: number;
+  estimated_municipal_income_tax: number;
+  estimated_state_income_tax: number;
+  estimated_total_tax: number;
+  estimated_effective_tax_rate: number;
+};
+
+export type CashSummaryDto = {
+  operating_bank_balance: number;
+  vat_payable: number;
+  vat_refundable: number;
+  tax_reserve_balance: number;
+  estimated_tax_remaining: number;
+  recommended_transfer_to_tax_account: number;
+  monthly_reservation: number;
+  cash_available_after_estimated_tax: number;
+};
+
+export type TaxEstimationMetaDto = {
+  source: "posted_journals";
+  calculation_version: string;
+  tax_year: number;
+  as_of: string;
+  forecast_mode: TaxForecastMode;
+  forecast_confidence: TaxForecastConfidence;
+  forecast_confidence_explanation: string;
+  calculated_at: string;
+  business_type: TaxBusinessType;
+};
+
+export type TaxAdjustmentLineDto = {
+  label: string;
+  amount: number;
+  direction: "add" | "subtract";
+};
+
+export type TaxBreakdownDto = {
+  tax: {
+    bookkeeping_profit_ytd: number;
+    bookkeeping_profit_annualized: number;
+    adjustments: TaxAdjustmentLineDto[];
+    taxable_profit_ytd: number;
+    taxable_profit_annualized: number;
+    egenavgifter: { rate: number; base: number; amount: number };
+    municipal_tax: { rate: number; base: number; amount: number; church_tax?: number };
+    state_tax: { rate: number; threshold: number; amount: number; enabled: boolean };
+    effective_tax_rate: number;
+  };
+  cash: {
+    operating_bank_balance: number;
+    tax_reserve_balance: number;
+    vat_payable: number;
+    vat_refundable: number;
+    vat_net_obligation: number;
+    estimated_tax_remaining: number;
+    recommended_transfer: number;
+    monthly_reservation: number;
+    cash_available_after_estimated_tax: number;
+    months_remaining: number;
+  };
+};
+
+export type MonthlyProjectionPointDto = {
+  month: string;
+  estimated_profit_cumulative: number;
+  estimated_tax_cumulative: number;
+  recommended_reserve_cumulative: number;
+  status: "actual" | "projected";
+};
+
+export type TaxAssumptionDto = {
+  label: string;
+  value: string | number | null;
+};
+
+export type TaxEstimationResponseDto = {
+  ok: true;
+  disclaimer: string;
+  meta: TaxEstimationMetaDto;
+  summary: {
+    tax: TaxSummaryDto;
+    cash: CashSummaryDto;
+  };
+  breakdown: TaxBreakdownDto;
+  forecast: MonthlyProjectionPointDto[];
+  assumptions: TaxAssumptionDto[];
+  validation: {
+    warnings: TaxValidationIssueDto[];
+    errors: TaxValidationIssueDto[];
+  };
+};
+
+export type TaxEstimationBreakdownResponseDto = {
+  ok: true;
+  disclaimer: string;
+  meta: TaxEstimationMetaDto;
+  breakdown: TaxBreakdownDto;
+  validation: {
+    warnings: TaxValidationIssueDto[];
+    errors: TaxValidationIssueDto[];
+  };
+};
+
+export type TaxEstimationForecastResponseDto = {
+  ok: true;
+  disclaimer: string;
+  meta: Pick<
+    TaxEstimationMetaDto,
+    "tax_year" | "as_of" | "forecast_mode" | "forecast_confidence" | "forecast_confidence_explanation" | "calculated_at"
+  >;
+  estimated_annual_profit: number;
+  forecast: MonthlyProjectionPointDto[];
+  validation: {
+    warnings: TaxValidationIssueDto[];
+    errors: TaxValidationIssueDto[];
+  };
+};
+
+export type TaxEstimationValidationResponseDto = {
+  ok: boolean;
+  disclaimer: string;
+  meta: {
+    tax_year: number;
+    as_of: string;
+    calculated_at: string;
+  };
+  validation: TaxValidationResultDto;
+};
+
+export type TaxSettingsDto = {
+  business_type: TaxBusinessType;
+  tax_year: number | null;
+  municipality_code: string | null;
+  municipal_tax_rate: number | null;
+  church_tax_enabled: boolean;
+  church_tax_rate: number | null;
+  egenavgifter_rate: number | null;
+  state_tax_enabled: boolean;
+  state_tax_rate: number | null;
+  state_tax_threshold: number | null;
+  expected_additional_income: number;
+  manual_tax_adjustments: TaxAdjustmentLineDto[];
+  tax_reserve_account: string;
+  operating_bank_account: string;
+  forecast_default_mode: TaxForecastMode;
+  updated_at: string;
+};
+
+export type TaxEstimationQueryParams = {
+  year?: string;
+  as_of?: string;
+  forecast_mode?: TaxForecastMode;
+  manual_annual_profit?: string;
+};
+
+export type TaxEstimationRequestResult<T> = {
+  ok: boolean;
+  data?: T;
+  error?: string;
+  status?: number;
+  validation?: TaxValidationResultDto;
+  setupRequired?: boolean;
+};
+
+type TaxEstimationErrorBody = {
+  error?: string;
+  validation?: TaxValidationResultDto;
+  disclaimer?: string;
+};
+
+function buildTaxEstimationQuery(params: TaxEstimationQueryParams = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.year) searchParams.set("year", params.year);
+  if (params.as_of) searchParams.set("as_of", params.as_of);
+  if (params.forecast_mode) searchParams.set("forecast_mode", params.forecast_mode);
+  if (params.manual_annual_profit) searchParams.set("manual_annual_profit", params.manual_annual_profit);
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
+async function requestTaxEstimationEndpoint<T>(path: string): Promise<TaxEstimationRequestResult<T>> {
+  if (!apiUrl) {
+    return { ok: false, error: "API not configured. Set VITE_KWSTUDIO_API_URL." };
+  }
+
+  const authorization = await authHeader();
+  if (!authorization) {
+    return { ok: false, error: "Authentication required. Sign in before calling the KWStudio API." };
+  }
+
+  try {
+    const response = await fetch(`${apiUrl.replace(/\/$/, "")}${path}`, {
+      headers: { Authorization: authorization },
+    });
+    const data = await response.json().catch(() => null) as T | TaxEstimationErrorBody | null;
+
+    if (response.status === 422) {
+      const body = data as TaxEstimationErrorBody | null;
+      return {
+        ok: false,
+        status: 422,
+        error: body?.error ?? "Tax estimation setup is incomplete.",
+        validation: body?.validation,
+        setupRequired: true,
+      };
+    }
+
+    if (!response.ok) {
+      const backendError = data && typeof data === "object" && "error" in data && typeof data.error === "string"
+        ? data.error
+        : `Finance API request failed with ${response.status}.`;
+      return { ok: false, status: response.status, error: backendError };
+    }
+
+    return { ok: true, data: data as T, status: response.status };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Finance API request failed.",
+    };
+  }
+}
+
+export function getTaxEstimation(params: TaxEstimationQueryParams = {}) {
+  return requestTaxEstimationEndpoint<TaxEstimationResponseDto>(
+    `/finance/tax-estimation${buildTaxEstimationQuery(params)}`,
+  );
+}
+
+export function getTaxEstimationBreakdown(params: TaxEstimationQueryParams = {}) {
+  return requestTaxEstimationEndpoint<TaxEstimationBreakdownResponseDto>(
+    `/finance/tax-estimation/breakdown${buildTaxEstimationQuery(params)}`,
+  );
+}
+
+export function getTaxEstimationForecast(params: TaxEstimationQueryParams = {}) {
+  return requestTaxEstimationEndpoint<TaxEstimationForecastResponseDto>(
+    `/finance/tax-estimation/forecast${buildTaxEstimationQuery(params)}`,
+  );
+}
+
+export function getTaxEstimationValidation(params: TaxEstimationQueryParams = {}) {
+  return requestTaxEstimationEndpoint<TaxEstimationValidationResponseDto>(
+    `/finance/tax-estimation/validation${buildTaxEstimationQuery(params)}`,
+  );
+}
+
+export type TaxScenarioDeltaType = "future_invoice" | "future_expense" | "one_time_adjustment";
+
+export type TaxScenarioDeltaDto = {
+  type: TaxScenarioDeltaType;
+  label: string;
+  amount: number;
+  vat_rate?: number;
+  month?: number;
+};
+
+export type TaxEstimationScenarioRequestPayload = TaxEstimationQueryParams & {
+  scenario_deltas?: TaxScenarioDeltaDto[];
+};
+
+export type TaxEstimationScenarioSideDto = {
+  meta: {
+    forecast_mode: TaxForecastMode;
+    forecast_confidence: TaxForecastConfidence;
+    forecast_confidence_score: number;
+    forecast_confidence_explanation: string;
+  };
+  summary: {
+    tax: TaxSummaryDto;
+    cash: CashSummaryDto;
+  };
+};
+
+export type TaxEstimationScenarioResponseDto = {
+  ok: true;
+  disclaimer: string;
+  meta: {
+    tax_year: number;
+    as_of: string;
+    base_forecast_mode: TaxForecastMode;
+    calculated_at: string;
+  };
+  base: TaxEstimationScenarioSideDto;
+  scenario: TaxEstimationScenarioSideDto & {
+    scenario_deltas: TaxScenarioDeltaDto[];
+    scenario_delta_total: number;
+  };
+  diff: {
+    tax: TaxSummaryDto;
+    cash: CashSummaryDto;
+  };
+  confidence_impact: {
+    base: TaxEstimationScenarioSideDto["meta"];
+    scenario: TaxEstimationScenarioSideDto["meta"];
+    score_delta: number;
+  };
+  validation: {
+    ok: boolean;
+    warnings: TaxValidationIssueDto[];
+    errors: TaxValidationIssueDto[];
+  };
+};
+
+export function postTaxEstimationScenario(payload: TaxEstimationScenarioRequestPayload) {
+  return requestFinanceApi<TaxEstimationScenarioResponseDto>("/finance/tax-estimation/scenario", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getTaxSettings() {
+  return requestFinanceApi<{ ok: true; settings: TaxSettingsDto }>("/finance/settings/tax");
+}
+
+export type TaxSettingsPatch = Partial<{
+  business_type: TaxBusinessType;
+  tax_year: number | null;
+  municipality_code: string | null;
+  municipal_tax_rate: number | null;
+  church_tax_enabled: boolean;
+  church_tax_rate: number | null;
+  egenavgifter_rate: number | null;
+  state_tax_enabled: boolean;
+  state_tax_rate: number | null;
+  state_tax_threshold: number | null;
+  expected_additional_income: number;
+  manual_tax_adjustments: TaxAdjustmentLineDto[];
+  tax_reserve_account: string;
+  operating_bank_account: string;
+  forecast_default_mode: TaxForecastMode;
+}>;
+
+export function updateTaxSettings(payload: TaxSettingsPatch) {
+  return requestFinanceApi<{ ok: true; settings: TaxSettingsDto }>("/finance/settings/tax", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}

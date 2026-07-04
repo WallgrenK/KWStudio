@@ -150,7 +150,13 @@ const STATUS_MAP: Record<string, StatusConfig> = {
   in_review:        { label: "In review",        color: "warning", icon: Eye },
   ready:            { label: "Ready",            color: "primary", icon: CheckCircle2 },
   missing_receipt:  { label: "Missing receipt",  color: "error",   icon: AlertCircle },
+  missing:          { label: "Missing receipt",  color: "error",   icon: AlertCircle },
+  not_required:     { label: "Not required",     color: "light",   icon: MinusCircle },
+  needs_review:     { label: "Needs review",     color: "warning", icon: Eye },
   suggested:        { label: "Suggested",        color: "info",    icon: Star },
+  error:            { label: "Error",            color: "error",   icon: AlertCircle },
+  success:          { label: "Success",          color: "success", icon: CheckCircle2 },
+  warning:          { label: "Warning",          color: "warning", icon: AlertTriangle },
 
   // General lifecycle
   active:     { label: "Active",     color: "success", icon: CheckCircle2 },

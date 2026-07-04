@@ -1,10 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { AlertCircle, ArrowRight, CheckCircle2, Download, FileCheck2, Plus, ReceiptText, Upload } from "lucide-react";
 import { AdminTabs as FinanceTabs } from "~/components/admin/AdminTabs";
 import { AdminShell } from "~/components/admin/AdminShell";
 import { AdminTable, type AdminTableColumn } from "~/components/admin/AdminTable";
 import { EmptyState } from "~/components/admin/EmptyState";
+import {
+  FinanceErrorBanner,
+  FinanceLoadingMessage,
+  FinanceSetupBanner,
+  FinanceValidationList,
+  FinanceValidationMessageList,
+} from "~/components/admin/finance/FinanceFeedback";
+import { JournalPreviewTable, type JournalPreviewLine } from "~/components/admin/finance/JournalPreviewTable";
 import { FilterBar } from "~/components/admin/FilterBar";
 import { FormCard } from "~/components/admin/FormCard";
 import { HubCard } from "~/components/admin/HubCard";
@@ -37,8 +45,6 @@ import {
   emailMessages,
   expenses,
   featuredClients,
-  financeActivity,
-  financeMetrics,
   files,
   followUps,
   invoices,
@@ -103,7 +109,6 @@ import {
   supplierRules,
   systemSuggestion,
   financeHealth,
-  taxEstimate,
   taxPocket,
   transactions as financeTransactions,
   outstandingInvoices,
@@ -117,6 +122,17 @@ import {
   type JournalEntry,
 } from "~/data/finance";
 import { isSupabaseConfigured } from "~/lib/supabase";
+import {
+  formatFinanceAmount,
+  formatFinanceDate,
+  formatKr,
+  formatKrDelta,
+  formatPercent,
+  formatPercentDelta,
+  formatReceiptAmount,
+  receiptStatusBadgeKey,
+  toNumber,
+} from "~/lib/financeFormat";
 import {
   auditAllWebsites,
   auditLeadWebsite,
@@ -157,6 +173,10 @@ import {
   submitVatPeriod,
   closeVatPeriod,
   getVatPeriodHistory,
+  getTaxEstimation,
+  getTaxSettings,
+  postTaxEstimationScenario,
+  updateTaxSettings,
   importRevolutCsv,
   isFinanceApiConfigured,
   matchFinanceReceipt,
@@ -173,7 +193,6 @@ import {
   type FinanceSupplierDto,
   type OwnerExpenseDto,
   type OwnerExpensePaymentSource,
-  type FinanceReceiptCandidateDto,
   type FinanceReceiptDto,
   type FinanceTransactionDto,
   type SieExportMetadata,
@@ -182,6 +201,14 @@ import {
   type VatPeriodHistoryEventDto,
   type VatPeriodStatus,
   type VatReportDto,
+  type TaxEstimationResponseDto,
+  type TaxEstimationScenarioResponseDto,
+  type TaxForecastMode,
+  type TaxScenarioDeltaDto,
+  type TaxScenarioDeltaType,
+  type TaxSettingsDto,
+  type TaxValidationIssueDto,
+  type TaxValidationResultDto,
 } from "~/services/financeApi";
 import { buildScbRequest, type ScbLeadFinderFilters } from "~/services/scbMapper";
 
@@ -2010,24 +2037,6 @@ function FinanceQuickActionButtons({
   );
 }
 
-function financeStatus(status: FinanceTransaction["status"]) {
-  if (status === "review") return "Review";
-  if (status === "ready") return "Ready";
-  return "Posted";
-}
-
-function receiptStatus(status: FinanceTransaction["receiptStatus"]) {
-  if (status === "matched") return "Matched";
-  if (status === "missing") return "Missing receipt";
-  if (status === "not_required") return "Ready";
-  return "Review";
-}
-
-function toNumber(value: number | string | null | undefined) {
-  const parsed = typeof value === "number" ? value : Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 function mapBackendTransaction(transaction: FinanceTransactionDto): FinanceTransaction {
   const status = transaction.status === "posted" ? "posted" : transaction.status === "ready" ? "ready" : "review";
   const receipt = transaction.receipt_status === "matched"
@@ -2059,37 +2068,6 @@ function mapBackendTransaction(transaction: FinanceTransactionDto): FinanceTrans
     aiConfidence: status === "review" ? 0 : 100,
     status,
   };
-}
-
-function formatFinanceAmount(amount: number, currency = "SEK") {
-  const formatted = Math.abs(amount).toLocaleString("sv-SE", {
-    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
-  });
-
-  return `${amount < 0 ? "-" : "+"}${formatted} ${currency}`;
-}
-
-function formatReceiptAmount(value: number | string | null | undefined, currency = "SEK") {
-  const amount = toNumber(value);
-  if (!amount) return "-";
-  return `${amount.toLocaleString("sv-SE", {
-    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
-    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
-  })} ${currency}`;
-}
-
-function receiptMatchStatus(status: string) {
-  if (status === "matched") return "Matched";
-  if (status === "suggested") return "Ready";
-  if (status === "unmatched") return "Review";
-  return "Pending";
-}
-
-
-function formatKr(value: number | string | null | undefined) {
-  const n = toNumber(value);
-  return `${n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
 }
 
 function toVatFrequencyLabel(value: "monthly" | "quarterly" | "yearly") {
@@ -2421,7 +2399,7 @@ function ImportTab({
             <p className="mt-1 text-sm font-medium text-gray-700">Demo filename: revolut-pro-transactions-july.csv</p>
             <span className="btn btn-primary mt-5">{isImporting ? "Importing..." : "Select CSV file"}</span>
           </label>
-          {importError ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{importError}</p> : null}
+          {importError ? <FinanceErrorBanner message={importError} /> : null}
           {importResultState ? (
             <p className="mt-4 rounded-xl bg-green-50 p-3 text-sm font-medium text-green-700">
               CSV import completed. Batch ID: {importResultState.batchId}
@@ -2504,9 +2482,9 @@ function TransactionsTab({
     { key: "category", header: "Category", render: (transaction) => transaction.category },
     { key: "bas", header: "BAS account", render: (transaction) => transaction.basAccount },
     { key: "vat", header: "VAT", render: (transaction) => `${transaction.vatRate}%` },
-    { key: "receipt", header: "Receipt", render: (transaction) => <StatusBadge status={receiptStatus(transaction.receiptStatus)} /> },
+    { key: "receipt", header: "Receipt", render: (transaction) => <StatusBadge status={receiptStatusBadgeKey(transaction.receiptStatus)} /> },
     { key: "confidence", header: "Confidence", render: (transaction) => `${transaction.aiConfidence}%` },
-    { key: "status", header: "Status", render: (transaction) => <StatusBadge status={financeStatus(transaction.status)} /> },
+    { key: "status", header: "Status", render: (transaction) => <StatusBadge status={transaction.status} /> },
     {
       key: "action",
       header: "Action",
@@ -3221,54 +3199,19 @@ function OwnerExpensesTab({
           ) : null}
 
           {newDraft.expense_account && draftGross > 0 ? (() => {
-            const draftLines = draftDeductibleVat > 0
+            const draftLines: JournalPreviewLine[] = draftDeductibleVat > 0
               ? [
-                  { account: newDraft.expense_account, description: newDraft.description || "Expense", debit: draftNet, credit: 0 },
-                  { account: "2641", description: "Ingående moms", debit: draftDeductibleVat, credit: 0 },
-                  { account: "2018", description: "Egen insättning", debit: 0, credit: draftGross },
+                  { key: "exp", account: newDraft.expense_account, description: newDraft.description || "Expense", debit: draftNet, credit: 0 },
+                  { key: "vat", account: "2641", description: "Ingående moms", debit: draftDeductibleVat, credit: 0 },
+                  { key: "own", account: "2018", description: "Egen insättning", debit: 0, credit: draftGross },
                 ]
               : [
-                  { account: newDraft.expense_account, description: newDraft.description || "Expense", debit: draftGross, credit: 0 },
-                  { account: "2018", description: "Egen insättning", debit: 0, credit: draftGross },
+                  { key: "exp", account: newDraft.expense_account, description: newDraft.description || "Expense", debit: draftGross, credit: 0 },
+                  { key: "own", account: "2018", description: "Egen insättning", debit: 0, credit: draftGross },
                 ];
-            const totalDebit = draftLines.reduce((sum, l) => sum + l.debit, 0);
-            const totalCredit = draftLines.reduce((sum, l) => sum + l.credit, 0);
-            const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
             return (
-              <div className="mt-4 rounded-xl border border-gray-100 p-4">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h4 className="text-base font-semibold text-gray-900">Recognition Journal</h4>
-                  <span className={`text-xs font-medium ${balanced ? "text-emerald-600" : "text-red-500"}`}>
-                    {balanced ? "✓ Balanced" : "⚠ Unbalanced"}
-                  </span>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
-                      <th className="pb-2 text-left">Account</th>
-                      <th className="pb-2 text-left">Description</th>
-                      <th className="pb-2 text-right">Debit</th>
-                      <th className="pb-2 text-right">Credit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {draftLines.map((line, i) => (
-                      <tr key={i} className="text-gray-700">
-                        <td className="py-2 pr-3 font-mono text-xs">{accountLabel(line.account)}</td>
-                        <td className="py-2 pr-3 text-gray-500">{line.description}</td>
-                        <td className="py-2 text-right tabular-nums">{line.debit > 0 ? formatKr(line.debit) : ""}</td>
-                        <td className="py-2 text-right tabular-nums">{line.credit > 0 ? formatKr(line.credit) : ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-gray-200 text-xs font-semibold text-gray-700">
-                      <td className="pt-2" colSpan={2}>Total</td>
-                      <td className="pt-2 text-right tabular-nums">{formatKr(totalDebit)}</td>
-                      <td className="pt-2 text-right tabular-nums">{formatKr(totalCredit)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+              <div className="mt-4">
+                <JournalPreviewTable lines={draftLines} accountLabel={accountLabel} />
               </div>
             );
           })() : null}
@@ -3295,7 +3238,7 @@ function OwnerExpensesTab({
         />
         <FinancePanel title="Owner expense details" description="Receipt, accounting preview, and reimbursement history.">
           {isLoadingDetails ? (
-            <p className="text-sm text-gray-500">Loading details...</p>
+            <FinanceLoadingMessage message="Loading owner expense details…" />
           ) : selected ? (
             <div className="space-y-6">
               {/* Receipt section */}
@@ -3407,8 +3350,7 @@ function OwnerExpensesTab({
               </div>
 
               {(() => {
-                type JournalLine = { key: string; account: string; description: string; debit: number; credit: number };
-                let journalLines: JournalLine[];
+                let journalLines: JournalPreviewLine[];
                 if (selected.recognition_lines && selected.recognition_lines.length > 0) {
                   journalLines = selected.recognition_lines.map((line) => ({
                     key: line.id,
@@ -3431,46 +3373,7 @@ function OwnerExpensesTab({
                     { key: "own", account: ownerAcc, description: "Egen insättning", debit: 0, credit: toNumber(selected.gross_amount) },
                   ];
                 }
-                const totalDebit = journalLines.reduce((sum, l) => sum + l.debit, 0);
-                const totalCredit = journalLines.reduce((sum, l) => sum + l.credit, 0);
-                const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
-                return (
-                  <div className="rounded-xl border border-gray-100 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <h3 className="text-base font-semibold text-gray-900">Recognition Journal</h3>
-                      <span className={`text-xs font-medium ${balanced ? "text-emerald-600" : "text-red-500"}`}>
-                        {balanced ? "✓ Balanced" : "⚠ Unbalanced"}
-                      </span>
-                    </div>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">
-                          <th className="pb-2 text-left">Account</th>
-                          <th className="pb-2 text-left">Description</th>
-                          <th className="pb-2 text-right">Debit</th>
-                          <th className="pb-2 text-right">Credit</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {journalLines.map((line) => (
-                          <tr key={line.key} className="text-gray-700">
-                            <td className="py-2 pr-3 font-mono text-xs">{accountLabel(line.account)}</td>
-                            <td className="py-2 pr-3 text-gray-500">{line.description}</td>
-                            <td className="py-2 text-right tabular-nums">{line.debit > 0 ? formatKr(line.debit) : ""}</td>
-                            <td className="py-2 text-right tabular-nums">{line.credit > 0 ? formatKr(line.credit) : ""}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t border-gray-200 text-xs font-semibold text-gray-700">
-                          <td className="pt-2" colSpan={2}>Total</td>
-                          <td className="pt-2 text-right tabular-nums">{formatKr(totalDebit)}</td>
-                          <td className="pt-2 text-right tabular-nums">{formatKr(totalCredit)}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                );
+                return <JournalPreviewTable lines={journalLines} accountLabel={accountLabel} />;
               })()}
 
               <div className="rounded-xl border border-gray-100 p-4">
@@ -3529,10 +3432,13 @@ function OwnerExpensesTab({
               ) : null}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">Select an owner expense row to view receipt, amounts, VAT, and history.</p>
+            <EmptyState
+              title="No expense selected"
+              description="Select an owner expense row to view receipt, amounts, VAT, and history."
+            />
           )}
           {ownerExpenseError ? (
-            <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{ownerExpenseError}</pre>
+            <FinanceErrorBanner message={ownerExpenseError} />
           ) : null}
         </FinancePanel>
       </div>
@@ -3623,7 +3529,7 @@ function ReceiptsTab({
     { key: "amount", header: "Amount", render: (receipt) => formatReceiptAmount(receipt.total_amount, receipt.currency ?? "SEK") },
     { key: "vat", header: "VAT", render: (receipt) => formatReceiptAmount(receipt.vat_amount, receipt.currency ?? "SEK") },
     { key: "matched", header: "Best match", render: (receipt) => transactionSummary(receipt.confirmed_transaction ?? receipt.best_transaction) },
-    { key: "status", header: "Status", render: (receipt) => <StatusBadge status={receiptMatchStatus(receipt.match_status)} /> },
+    { key: "status", header: "Status", render: (receipt) => <StatusBadge status={receipt.match_status} /> },
     {
       key: "actions",
       header: "Actions",
@@ -3680,7 +3586,7 @@ function ReceiptsTab({
           </div>
         </div>
         {receiptError ? (
-          <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{receiptError}</pre>
+          <FinanceErrorBanner message={receiptError} />
         ) : null}
       </FinancePanel>
 
@@ -3876,6 +3782,8 @@ function VatTab() {
     setIsLoadingDetails(true);
     setVatError(null);
 
+    const detailErrors: string[] = [];
+
     const [reportResult, declarationResult, historyResult] = await Promise.all([
       getVatPeriodReport(periodId),
       getVatPeriodDeclaration(periodId),
@@ -3886,21 +3794,25 @@ function VatTab() {
       setReport(reportResult.data.report);
     } else {
       setReport(null);
-      setVatError(reportResult.error ?? "Could not load VAT report.");
+      detailErrors.push(reportResult.error ?? "Could not load VAT report.");
     }
 
     if (declarationResult.ok && declarationResult.data) {
       setDeclarationBoxes(declarationResult.data.declaration.boxes);
     } else {
       setDeclarationBoxes(null);
-      if (!vatError) setVatError(declarationResult.error ?? "Could not load VAT declaration values.");
+      detailErrors.push(declarationResult.error ?? "Could not load VAT declaration values.");
     }
 
     if (historyResult.ok && historyResult.data) {
       setHistory(historyResult.data.history);
     } else {
       setHistory([]);
-      if (!vatError) setVatError(historyResult.error ?? "Could not load VAT period history.");
+      detailErrors.push(historyResult.error ?? "Could not load VAT period history.");
+    }
+
+    if (detailErrors.length > 0) {
+      setVatError(detailErrors.join("\n"));
     }
 
     setIsLoadingDetails(false);
@@ -4123,13 +4035,13 @@ function VatTab() {
       />
 
       {vatError ? (
-        <pre className="overflow-auto whitespace-pre-wrap rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">{vatError}</pre>
+        <FinanceErrorBanner message={vatError} onRetry={() => void refreshPeriods(false)} />
       ) : null}
 
       <FinancePanel title="VAT periods" description="Select lifecycle period and status for VAT reporting.">
-        {isLoadingPeriods ? (
-          <p className="text-sm text-gray-500">Loading VAT periods...</p>
-        ) : periods.length > 0 ? (
+      {isLoadingPeriods ? (
+        <FinanceLoadingMessage message="Loading VAT periods…" />
+      ) : periods.length > 0 ? (
           <>
             <AdminTable
               columns={periodColumns}
@@ -4156,7 +4068,7 @@ function VatTab() {
       <FinanceKpiGrid metrics={kpiMetrics} />
 
       {isLoadingDetails ? (
-        <FinancePanel title="VAT details"><p className="text-sm text-gray-500">Loading VAT report...</p></FinancePanel>
+        <FinancePanel title="VAT details"><FinanceLoadingMessage message="Loading VAT report…" /></FinancePanel>
       ) : !report ? (
         <FinancePanel title="VAT details"><EmptyState title="No VAT data" description="Select a VAT period to load report and declaration values." /></FinancePanel>
       ) : (
@@ -4203,19 +4115,11 @@ function VatTab() {
                 <p className="text-sm text-gray-500">No validation warnings or errors.</p>
               ) : null}
               {validation.warnings.length > 0 ? (
-                <div className="rounded-lg bg-amber-50 p-3">
-                  <h3 className="text-sm font-semibold text-amber-900">Warnings</h3>
-                  <ul className="mt-2 space-y-1 text-sm text-amber-800">
-                    {validation.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-                  </ul>
-                </div>
+                <FinanceValidationMessageList items={validation.warnings} tone="warning" title="Warnings" />
               ) : null}
               {validation.errors.length > 0 ? (
-                <div className="mt-3 rounded-lg bg-red-50 p-3">
-                  <h3 className="text-sm font-semibold text-red-900">Errors</h3>
-                  <ul className="mt-2 space-y-1 text-sm text-red-800">
-                    {validation.errors.map((error) => <li key={error}>{error}</li>)}
-                  </ul>
+                <div className="mt-3">
+                  <FinanceValidationMessageList items={validation.errors} tone="error" title="Errors" />
                 </div>
               ) : null}
             </FinancePanel>
@@ -4258,26 +4162,797 @@ function VatTab() {
   );
 }
 
+function taxConfidenceBadgeClass(confidence: "low" | "medium" | "high") {
+  if (confidence === "high") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (confidence === "medium") return "border-amber-200 bg-amber-50 text-amber-800";
+  return "border-red-200 bg-red-50 text-red-800";
+}
+
+function formatAssumptionValue(value: string | number | null) {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "number") return String(value);
+  return value;
+}
+
+type TaxSettingsFormState = {
+  municipality_code: string;
+  municipal_tax_rate: string;
+  church_tax_enabled: boolean;
+  church_tax_rate: string;
+  egenavgifter_rate: string;
+  state_tax_enabled: boolean;
+  state_tax_rate: string;
+  state_tax_threshold: string;
+  tax_reserve_account: string;
+  operating_bank_account: string;
+  forecast_default_mode: TaxForecastMode;
+};
+
+function settingsToFormState(settings: TaxSettingsDto): TaxSettingsFormState {
+  return {
+    municipality_code: settings.municipality_code ?? "",
+    municipal_tax_rate: settings.municipal_tax_rate !== null ? String(settings.municipal_tax_rate) : "",
+    church_tax_enabled: settings.church_tax_enabled,
+    church_tax_rate: settings.church_tax_rate !== null ? String(settings.church_tax_rate) : "",
+    egenavgifter_rate: settings.egenavgifter_rate !== null ? String(settings.egenavgifter_rate) : "",
+    state_tax_enabled: settings.state_tax_enabled,
+    state_tax_rate: settings.state_tax_rate !== null ? String(settings.state_tax_rate) : "",
+    state_tax_threshold: settings.state_tax_threshold !== null ? String(settings.state_tax_threshold) : "",
+    tax_reserve_account: settings.tax_reserve_account,
+    operating_bank_account: settings.operating_bank_account,
+    forecast_default_mode: settings.forecast_default_mode,
+  };
+}
+
+function parseOptionalRate(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number.parseFloat(trimmed.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+type ScenarioRowFormState = {
+  id: string;
+  type: TaxScenarioDeltaType;
+  label: string;
+  amount: string;
+  vat_rate: string;
+  month: string;
+};
+
+function createScenarioRow(partial?: Partial<ScenarioRowFormState>): ScenarioRowFormState {
+  return {
+    id: partial?.id ?? crypto.randomUUID(),
+    type: partial?.type ?? "future_invoice",
+    label: partial?.label ?? "",
+    amount: partial?.amount ?? "",
+    vat_rate: partial?.vat_rate ?? "",
+    month: partial?.month ?? "",
+  };
+}
+
+function scenarioRowsToDeltas(rows: ScenarioRowFormState[]): TaxScenarioDeltaDto[] {
+  return rows.flatMap((row) => {
+    const label = row.label.trim();
+    const amount = Number.parseFloat(row.amount.replace(",", "."));
+    if (!label || !Number.isFinite(amount)) return [];
+
+    const delta: TaxScenarioDeltaDto = {
+      type: row.type,
+      label,
+      amount,
+    };
+
+    const vatRate = parseOptionalRate(row.vat_rate);
+    if (vatRate !== null) delta.vat_rate = vatRate;
+
+    const month = Number.parseInt(row.month, 10);
+    if (Number.isInteger(month) && month >= 1 && month <= 12) delta.month = month;
+
+    return [delta];
+  });
+}
+
 function TaxesTab() {
-  const columns: Array<AdminTableColumn<(typeof taxEstimate.monthlyPlan)[number]>> = [
+  const currentYear = new Date().getFullYear();
+  const defaultAsOf = new Date().toISOString().slice(0, 10);
+  const [year, setYear] = useState(String(currentYear));
+  const [asOf, setAsOf] = useState(defaultAsOf);
+  const [forecastMode, setForecastMode] = useState<TaxForecastMode>("ytd_linear");
+  const [manualAnnualProfit, setManualAnnualProfit] = useState("");
+  const [estimate, setEstimate] = useState<TaxEstimationResponseDto | null>(null);
+  const [settingsForm, setSettingsForm] = useState<TaxSettingsFormState | null>(null);
+  const [validation, setValidation] = useState<TaxValidationResultDto | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [scenarioRows, setScenarioRows] = useState<ScenarioRowFormState[]>([createScenarioRow()]);
+  const [scenarioResult, setScenarioResult] = useState<TaxEstimationScenarioResponseDto | null>(null);
+  const [isScenarioLoading, setIsScenarioLoading] = useState(false);
+  const [scenarioError, setScenarioError] = useState<string | null>(null);
+
+  const yearOptions = useMemo(
+    () => Array.from({ length: 6 }, (_, index) => currentYear - 3 + index).map((value) => ({
+      label: String(value),
+      value: String(value),
+    })),
+    [currentYear],
+  );
+
+  const forecastModeOptions = useMemo(
+    () => [
+      { label: "YTD only", value: "ytd_only" },
+      { label: "Linear annualization", value: "ytd_linear" },
+      { label: "Manual override", value: "manual" },
+      { label: "Scenario (base)", value: "scenario" },
+    ],
+    [],
+  );
+
+  async function loadSettings() {
+    const result = await getTaxSettings();
+    if (result.ok && result.data) {
+      setSettingsForm(settingsToFormState(result.data.settings));
+      return result.data.settings;
+    }
+    setSettingsError(result.error ?? "Could not load tax settings.");
+    return null;
+  }
+
+  async function loadEstimate() {
+    setIsLoading(true);
+    setLoadError(null);
+    setSetupRequired(false);
+
+    const result = await getTaxEstimation({
+      year,
+      as_of: asOf,
+      forecast_mode: forecastMode,
+      manual_annual_profit: forecastMode === "manual" ? manualAnnualProfit : undefined,
+    });
+
+    if (result.ok && result.data) {
+      setEstimate(result.data);
+      setValidation({
+        ok: result.data.validation.errors.length === 0,
+        has_errors: result.data.validation.errors.length > 0,
+        has_warnings: result.data.validation.warnings.length > 0,
+        errors: result.data.validation.errors,
+        warnings: result.data.validation.warnings,
+        issues: [...result.data.validation.errors, ...result.data.validation.warnings],
+      });
+      setSetupRequired(false);
+    } else if (result.setupRequired) {
+      setEstimate(null);
+      setValidation(result.validation ?? null);
+      setSetupRequired(true);
+      setLoadError(result.error ?? "Configure tax settings before running estimation.");
+    } else {
+      setEstimate(null);
+      setLoadError(result.error ?? "Could not load tax estimation.");
+    }
+
+    setIsLoading(false);
+  }
+
+  async function refreshAll() {
+    await loadSettings();
+    await loadEstimate();
+  }
+
+  useEffect(() => {
+    void refreshAll();
+  }, []);
+
+  async function handleRecalculate() {
+    await loadEstimate();
+  }
+
+  async function handleRecalculateScenario() {
+    setIsScenarioLoading(true);
+    setScenarioError(null);
+
+    const deltas = scenarioRowsToDeltas(scenarioRows);
+    const result = await postTaxEstimationScenario({
+      year,
+      as_of: asOf,
+      forecast_mode: forecastMode,
+      manual_annual_profit: forecastMode === "manual" ? manualAnnualProfit : undefined,
+      scenario_deltas: deltas,
+    });
+
+    if (result.ok && result.data) {
+      setScenarioResult(result.data);
+    } else if (result.status === 422) {
+      setScenarioResult(null);
+      setScenarioError(result.error ?? "Configure tax settings before running scenario estimation.");
+    } else {
+      setScenarioResult(null);
+      setScenarioError(result.error ?? "Could not calculate scenario.");
+    }
+
+    setIsScenarioLoading(false);
+  }
+
+  function handleAddScenarioRow() {
+    setScenarioRows((rows) => [...rows, createScenarioRow()]);
+  }
+
+  function handleRemoveScenarioRow(id: string) {
+    setScenarioRows((rows) => (rows.length <= 1 ? rows : rows.filter((row) => row.id !== id)));
+  }
+
+  function updateScenarioRow(id: string, patch: Partial<ScenarioRowFormState>) {
+    setScenarioRows((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  async function handleSaveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!settingsForm) return;
+
+    setIsSavingSettings(true);
+    setSettingsError(null);
+    setSettingsMessage(null);
+
+    const result = await updateTaxSettings({
+      municipality_code: settingsForm.municipality_code.trim() || null,
+      municipal_tax_rate: parseOptionalRate(settingsForm.municipal_tax_rate),
+      church_tax_enabled: settingsForm.church_tax_enabled,
+      church_tax_rate: parseOptionalRate(settingsForm.church_tax_rate),
+      egenavgifter_rate: parseOptionalRate(settingsForm.egenavgifter_rate),
+      state_tax_enabled: settingsForm.state_tax_enabled,
+      state_tax_rate: parseOptionalRate(settingsForm.state_tax_rate),
+      state_tax_threshold: parseOptionalRate(settingsForm.state_tax_threshold),
+      tax_reserve_account: settingsForm.tax_reserve_account.trim(),
+      operating_bank_account: settingsForm.operating_bank_account.trim(),
+      forecast_default_mode: settingsForm.forecast_default_mode,
+    });
+
+    if (result.ok && result.data) {
+      setSettingsForm(settingsToFormState(result.data.settings));
+      setSettingsMessage("Tax settings saved.");
+      await loadEstimate();
+    } else {
+      setSettingsError(result.error ?? "Could not save tax settings.");
+    }
+
+    setIsSavingSettings(false);
+  }
+
+  const taxKpiMetrics = estimate
+    ? [
+      {
+        label: "Estimated annual profit",
+        value: formatKr(estimate.summary.tax.estimated_annual_profit),
+        detail: "Projected bookkeeping result (estimate)",
+      },
+      {
+        label: "Estimated taxable profit",
+        value: formatKr(estimate.summary.tax.estimated_taxable_profit),
+        detail: "After adjustments (estimate)",
+      },
+      {
+        label: "Estimated total tax",
+        value: formatKr(estimate.summary.tax.estimated_total_tax),
+        detail: "Egenavgifter + income tax (estimate)",
+      },
+      {
+        label: "Effective estimated tax rate",
+        value: formatPercent(estimate.summary.tax.estimated_effective_tax_rate),
+        detail: "Total tax / taxable profit (estimate)",
+      },
+    ]
+    : [
+      { label: "Estimated annual profit", value: "—", detail: "Awaiting estimate" },
+      { label: "Estimated taxable profit", value: "—", detail: "Awaiting estimate" },
+      { label: "Estimated total tax", value: "—", detail: "Awaiting estimate" },
+      { label: "Effective estimated tax rate", value: "—", detail: "Awaiting estimate" },
+    ];
+
+  const cashKpiMetrics = estimate
+    ? [
+      {
+        label: "Operating bank balance",
+        value: formatKr(estimate.summary.cash.operating_bank_balance),
+        detail: "Posted ledger balance (estimate context)",
+      },
+      {
+        label: "VAT payable / refundable",
+        value: `${formatKr(estimate.summary.cash.vat_payable)} / ${formatKr(estimate.summary.cash.vat_refundable)}`,
+        detail: "YTD VAT cash impact (estimate)",
+      },
+      {
+        label: "Tax reserve balance",
+        value: formatKr(estimate.summary.cash.tax_reserve_balance),
+        detail: "Configured reserve account",
+      },
+      {
+        label: "Cash available after estimated tax",
+        value: formatKr(estimate.summary.cash.cash_available_after_estimated_tax),
+        detail: "After tax remaining and net VAT (estimate)",
+      },
+    ]
+    : [
+      { label: "Operating bank balance", value: "—", detail: "Awaiting estimate" },
+      { label: "VAT payable / refundable", value: "—", detail: "Awaiting estimate" },
+      { label: "Tax reserve balance", value: "—", detail: "Awaiting estimate" },
+      { label: "Cash available after estimated tax", value: "—", detail: "Awaiting estimate" },
+    ];
+
+  const taxBreakdownRows = estimate
+    ? [
+      { label: "Bookkeeping profit YTD (estimate)", value: formatKr(estimate.breakdown.tax.bookkeeping_profit_ytd) },
+      { label: "Bookkeeping profit annualized (estimate)", value: formatKr(estimate.breakdown.tax.bookkeeping_profit_annualized) },
+      { label: "Taxable profit YTD (estimate)", value: formatKr(estimate.breakdown.tax.taxable_profit_ytd) },
+      { label: "Taxable profit annualized (estimate)", value: formatKr(estimate.breakdown.tax.taxable_profit_annualized) },
+      { label: "Egenavgifter (estimate)", value: formatKr(estimate.breakdown.tax.egenavgifter.amount) },
+      { label: "Municipal income tax (estimate)", value: formatKr(estimate.breakdown.tax.municipal_tax.amount) },
+      { label: "State income tax (estimate)", value: formatKr(estimate.breakdown.tax.state_tax.amount) },
+      { label: "Effective tax rate (estimate)", value: formatPercent(estimate.breakdown.tax.effective_tax_rate) },
+    ]
+    : [];
+
+  const cashBreakdownRows = estimate
+    ? [
+      { label: "Operating bank balance", value: formatKr(estimate.breakdown.cash.operating_bank_balance) },
+      { label: "Tax reserve balance", value: formatKr(estimate.breakdown.cash.tax_reserve_balance) },
+      { label: "VAT payable YTD", value: formatKr(estimate.breakdown.cash.vat_payable) },
+      { label: "VAT refundable YTD", value: formatKr(estimate.breakdown.cash.vat_refundable) },
+      { label: "Net VAT obligation", value: formatKr(estimate.breakdown.cash.vat_net_obligation) },
+      { label: "Estimated tax remaining", value: formatKr(estimate.breakdown.cash.estimated_tax_remaining) },
+      { label: "Recommended transfer", value: formatKr(estimate.breakdown.cash.recommended_transfer) },
+      { label: "Monthly reservation (estimate)", value: formatKr(estimate.breakdown.cash.monthly_reservation) },
+      { label: "Cash available after estimated tax", value: formatKr(estimate.breakdown.cash.cash_available_after_estimated_tax) },
+    ]
+    : [];
+
+  const assumptionRows = estimate
+    ? estimate.assumptions.map((item) => ({
+      label: item.label,
+      value: formatAssumptionValue(item.value),
+    }))
+    : [];
+
+  const forecastColumns: Array<AdminTableColumn<NonNullable<TaxEstimationResponseDto>["forecast"][number]>> = [
     { key: "month", header: "Month", render: (row) => <strong className="text-gray-800">{row.month}</strong> },
-    { key: "amount", header: "Suggested reserve", render: (row) => row.amount },
-    { key: "status", header: "Status", render: (row) => <StatusBadge status={row.status === "reserved" ? "Paid" : row.status === "behind" ? "Overdue" : "Scheduled"} /> },
+    {
+      key: "profit",
+      header: "Profit cumulative (est.)",
+      render: (row) => formatKr(row.estimated_profit_cumulative),
+      align: "right",
+    },
+    {
+      key: "tax",
+      header: "Tax cumulative (est.)",
+      render: (row) => formatKr(row.estimated_tax_cumulative),
+      align: "right",
+    },
+    {
+      key: "reserve",
+      header: "Reserve cumulative (est.)",
+      render: (row) => formatKr(row.recommended_reserve_cumulative),
+      align: "right",
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => (
+        <StatusBadge status={row.status === "actual" ? "Posted" : "Scheduled"} />
+      ),
+    },
   ];
+
+  const validationErrors = validation?.errors ?? estimate?.validation.errors ?? [];
+  const validationWarnings = validation?.warnings ?? estimate?.validation.warnings ?? [];
+
+  if (!isFinanceApiConfigured) {
+    return (
+      <EmptyState
+        title="Finance API not configured"
+        description="Set VITE_KWSTUDIO_API_URL to load live tax estimation."
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-800">{taxEstimate.disclaimer}</div>
-      <FinanceKpiGrid metrics={taxEstimate.metrics} />
-      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-        <FinancePanel title="Calculation">
-          <FinanceDefinitionList rows={taxEstimate.calculation} />
-        </FinancePanel>
-        <div>
-          <h2 className="mb-4 text-lg font-semibold text-gray-800">Monthly reserve plan</h2>
-          <AdminTable columns={columns} rows={taxEstimate.monthlyPlan} getRowKey={(row) => row.month} />
-        </div>
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-800">
+        {estimate?.disclaimer ?? "This is an estimate only. Final tax depends on Swedish Tax Agency rules and your personal situation."}
       </div>
+
+      <FilterBar
+        filters={[
+          { label: "Tax year", value: year, options: yearOptions, onChange: setYear },
+          { label: "Forecast mode", value: forecastMode, options: forecastModeOptions, onChange: (value) => setForecastMode(value as TaxForecastMode) },
+        ]}
+      />
+
+      <div className="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+          As-of date
+          <input
+            className="h-11 rounded-lg border border-gray-200 px-4 text-sm text-gray-800"
+            type="date"
+            value={asOf}
+            onChange={(event) => setAsOf(event.target.value)}
+          />
+        </label>
+        {forecastMode === "manual" ? (
+          <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+            Manual annual profit (SEK)
+            <input
+              className="h-11 rounded-lg border border-gray-200 px-4 text-sm text-gray-800"
+              type="text"
+              inputMode="decimal"
+              value={manualAnnualProfit}
+              onChange={(event) => setManualAnnualProfit(event.target.value)}
+              placeholder="e.g. 250000"
+            />
+          </label>
+        ) : (
+          <div />
+        )}
+        <button className="btn btn-primary h-11" type="button" disabled={isLoading} onClick={() => void handleRecalculate()}>
+          {isLoading ? "Recalculating..." : "Recalculate estimate"}
+        </button>
+      </div>
+
+      {estimate ? (
+        <div className={`rounded-2xl border p-4 text-sm ${taxConfidenceBadgeClass(estimate.meta.forecast_confidence)}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold uppercase tracking-wide">Forecast confidence: {estimate.meta.forecast_confidence}</span>
+          </div>
+          <p className="mt-2 leading-6">{estimate.meta.forecast_confidence_explanation}</p>
+        </div>
+      ) : null}
+
+      {setupRequired ? (
+        <FinanceSetupBanner
+          title="Setup required"
+          description="Tax estimation could not run because required settings or posted data are missing. Update the settings below and save to retry."
+          error={loadError}
+        />
+      ) : null}
+
+      {loadError && !setupRequired ? (
+        <FinanceErrorBanner message={loadError} onRetry={() => void loadEstimate()} />
+      ) : null}
+
+      <div>
+        <h2 className="mb-4 text-lg font-semibold text-gray-800">Tax Estimation</h2>
+        {isLoading && !estimate ? <FinanceLoadingMessage message="Loading tax estimation…" /> : null}
+        <FinanceKpiGrid metrics={taxKpiMetrics} />
+      </div>
+
+      <div>
+        <h2 className="mb-4 text-lg font-semibold text-gray-800">Cash Planning</h2>
+        <FinanceKpiGrid metrics={cashKpiMetrics} />
+      </div>
+
+      <FinancePanel title="Monthly projection (estimate)" description="Cumulative profit, tax, and recommended reserve through the tax year.">
+        {isLoading && !estimate ? (
+          <FinanceLoadingMessage message="Loading forecast…" />
+        ) : estimate && estimate.forecast.length > 0 ? (
+          <AdminTable columns={forecastColumns} rows={estimate.forecast} getRowKey={(row) => row.month} />
+        ) : (
+          <EmptyState title="No forecast data" description="Recalculate after configuring tax settings." />
+        )}
+      </FinancePanel>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <FinancePanel title="Tax breakdown (estimate)">
+          {taxBreakdownRows.length > 0 ? (
+            <FinanceDefinitionList rows={taxBreakdownRows} />
+          ) : (
+            <EmptyState title="No tax breakdown" description="Recalculate after configuring tax settings." />
+          )}
+        </FinancePanel>
+        <FinancePanel title="Cash planning (estimate)">
+          {cashBreakdownRows.length > 0 ? (
+            <FinanceDefinitionList rows={cashBreakdownRows} />
+          ) : (
+            <EmptyState title="No cash planning breakdown" description="Recalculate after configuring tax settings." />
+          )}
+        </FinancePanel>
+      </div>
+
+      <FinancePanel title="Assumptions" description="Configuration and data sources used for this estimate.">
+        {assumptionRows.length > 0 ? (
+          <FinanceDefinitionList rows={assumptionRows} />
+        ) : (
+          <EmptyState title="No assumptions yet" description="Assumptions will appear after a successful estimate." />
+        )}
+      </FinancePanel>
+
+      <FinancePanel title="Validation" description="Blocking errors stop estimation. Warnings are informational only.">
+        {validationErrors.length > 0 ? (
+          <div className="mb-4 space-y-2">
+            <h3 className="text-sm font-semibold text-red-700">Errors</h3>
+            <FinanceValidationList items={validationErrors} tone="error" />
+          </div>
+        ) : null}
+        {validationWarnings.length > 0 ? (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-amber-700">Warnings</h3>
+            <FinanceValidationList items={validationWarnings} tone="warning" />
+          </div>
+        ) : null}
+        {validationErrors.length === 0 && validationWarnings.length === 0 ? (
+          <p className="text-sm text-gray-500">No validation issues reported.</p>
+        ) : null}
+      </FinancePanel>
+
+      <FinancePanel
+        title="Scenario calculator (estimate)"
+        description="Stateless what-if adjustments. Scenarios are not saved and do not write to the ledger."
+      >
+        <div className="space-y-4">
+          {scenarioRows.map((row, index) => (
+            <div key={row.id} className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-6 md:items-end">
+              <label className="flex flex-col gap-1 text-xs font-medium text-gray-500 md:col-span-1">
+                Type
+                <select
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                  value={row.type}
+                  onChange={(event) => updateScenarioRow(row.id, { type: event.target.value as TaxScenarioDeltaType })}
+                >
+                  <option value="future_invoice">Future invoice</option>
+                  <option value="future_expense">Future expense</option>
+                  <option value="one_time_adjustment">One-time adjustment</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-gray-500 md:col-span-2">
+                Label
+                <input
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                  value={row.label}
+                  onChange={(event) => updateScenarioRow(row.id, { label: event.target.value })}
+                  placeholder={`Scenario row ${index + 1}`}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+                Amount (SEK)
+                <input
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                  type="text"
+                  inputMode="decimal"
+                  value={row.amount}
+                  onChange={(event) => updateScenarioRow(row.id, { amount: event.target.value })}
+                  placeholder={row.type === "future_expense" ? "-50000" : "100000"}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+                VAT rate (%)
+                <input
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                  type="text"
+                  inputMode="decimal"
+                  value={row.vat_rate}
+                  onChange={(event) => updateScenarioRow(row.id, { vat_rate: event.target.value })}
+                  placeholder="25"
+                />
+              </label>
+              <div className="flex gap-2 md:col-span-1">
+                <label className="flex flex-1 flex-col gap-1 text-xs font-medium text-gray-500">
+                  Month
+                  <input
+                    className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={row.month}
+                    onChange={(event) => updateScenarioRow(row.id, { month: event.target.value })}
+                    placeholder="1–12"
+                  />
+                </label>
+                <button
+                  className="btn btn-secondary mt-5 h-11 px-3"
+                  type="button"
+                  disabled={scenarioRows.length <= 1}
+                  onClick={() => handleRemoveScenarioRow(row.id)}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="btn btn-secondary" type="button" onClick={handleAddScenarioRow}>
+              Add scenario row
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={isScenarioLoading || setupRequired}
+              onClick={() => void handleRecalculateScenario()}
+            >
+              {isScenarioLoading ? "Recalculating scenario..." : "Recalculate scenario"}
+            </button>
+          </div>
+
+          {scenarioError ? (
+            <FinanceErrorBanner message={scenarioError} onRetry={() => void handleRecalculateScenario()} />
+          ) : null}
+
+          {scenarioResult ? (
+            <div className="space-y-4">
+              <div className={`rounded-xl border p-4 text-sm ${taxConfidenceBadgeClass(scenarioResult.confidence_impact.scenario.forecast_confidence)}`}>
+                <p className="font-semibold">
+                  Scenario forecast confidence: {scenarioResult.confidence_impact.scenario.forecast_confidence}
+                  {" "}
+                  ({scenarioResult.confidence_impact.score_delta > 0 ? "+" : ""}
+                  {scenarioResult.confidence_impact.score_delta.toLocaleString("sv-SE")} score vs base)
+                </p>
+                <p className="mt-2 leading-6">{scenarioResult.confidence_impact.scenario.forecast_confidence_explanation}</p>
+              </div>
+
+              <AdminTable
+                columns={[
+                  { key: "metric", header: "Metric (estimate)", render: (row) => row.metric },
+                  {
+                    key: "base",
+                    header: "Base (estimate)",
+                    render: (row) => row.base,
+                    align: "right",
+                  },
+                  {
+                    key: "scenario",
+                    header: "Scenario (estimate)",
+                    render: (row) => row.scenario,
+                    align: "right",
+                  },
+                  {
+                    key: "diff",
+                    header: "Diff",
+                    render: (row) => (
+                      <span className={row.diffTone === "positive" ? "text-emerald-700" : row.diffTone === "negative" ? "text-red-700" : "text-gray-700"}>
+                        {row.diff}
+                      </span>
+                    ),
+                    align: "right",
+                  },
+                ]}
+                rows={[
+                  {
+                    metric: "Estimated taxable profit",
+                    base: formatKr(scenarioResult.base.summary.tax.estimated_taxable_profit),
+                    scenario: formatKr(scenarioResult.scenario.summary.tax.estimated_taxable_profit),
+                    diff: formatKrDelta(scenarioResult.diff.tax.estimated_taxable_profit),
+                    diffTone: scenarioResult.diff.tax.estimated_taxable_profit > 0 ? "positive" : scenarioResult.diff.tax.estimated_taxable_profit < 0 ? "negative" : "neutral",
+                  },
+                  {
+                    metric: "Estimated total tax",
+                    base: formatKr(scenarioResult.base.summary.tax.estimated_total_tax),
+                    scenario: formatKr(scenarioResult.scenario.summary.tax.estimated_total_tax),
+                    diff: formatKrDelta(scenarioResult.diff.tax.estimated_total_tax),
+                    diffTone: scenarioResult.diff.tax.estimated_total_tax > 0 ? "negative" : scenarioResult.diff.tax.estimated_total_tax < 0 ? "positive" : "neutral",
+                  },
+                  {
+                    metric: "Effective tax rate",
+                    base: formatPercent(scenarioResult.base.summary.tax.estimated_effective_tax_rate),
+                    scenario: formatPercent(scenarioResult.scenario.summary.tax.estimated_effective_tax_rate),
+                    diff: formatPercentDelta(scenarioResult.diff.tax.estimated_effective_tax_rate),
+                    diffTone: "neutral",
+                  },
+                  {
+                    metric: "Recommended transfer",
+                    base: formatKr(scenarioResult.base.summary.cash.recommended_transfer_to_tax_account),
+                    scenario: formatKr(scenarioResult.scenario.summary.cash.recommended_transfer_to_tax_account),
+                    diff: formatKrDelta(scenarioResult.diff.cash.recommended_transfer_to_tax_account),
+                    diffTone: scenarioResult.diff.cash.recommended_transfer_to_tax_account > 0 ? "negative" : scenarioResult.diff.cash.recommended_transfer_to_tax_account < 0 ? "positive" : "neutral",
+                  },
+                  {
+                    metric: "Cash available after estimated tax",
+                    base: formatKr(scenarioResult.base.summary.cash.cash_available_after_estimated_tax),
+                    scenario: formatKr(scenarioResult.scenario.summary.cash.cash_available_after_estimated_tax),
+                    diff: formatKrDelta(scenarioResult.diff.cash.cash_available_after_estimated_tax),
+                    diffTone: scenarioResult.diff.cash.cash_available_after_estimated_tax > 0 ? "positive" : scenarioResult.diff.cash.cash_available_after_estimated_tax < 0 ? "negative" : "neutral",
+                  },
+                ]}
+                getRowKey={(row) => row.metric}
+              />
+
+              {scenarioResult.scenario.scenario_delta_total !== 0 ? (
+                <p className="text-sm text-gray-600">
+                  Net scenario P&amp;L impact (estimate): {formatKrDelta(scenarioResult.scenario.scenario_delta_total)}
+                </p>
+              ) : null}
+
+              {(scenarioResult.validation.warnings.length > 0 || scenarioResult.validation.errors.length > 0) ? (
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h3 className="text-sm font-semibold text-gray-800">Scenario validation</h3>
+                  {scenarioResult.validation.errors.length > 0 ? (
+                    <div className="mt-3">
+                      <FinanceValidationList items={scenarioResult.validation.errors} tone="error" />
+                    </div>
+                  ) : null}
+                  {scenarioResult.validation.warnings.length > 0 ? (
+                    <div className="mt-3">
+                      <FinanceValidationList items={scenarioResult.validation.warnings} tone="warning" />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">
+              Add hypothetical rows and click Recalculate scenario to compare base vs scenario estimates.
+            </p>
+          )}
+        </div>
+      </FinancePanel>
+
+      <FinancePanel title="Tax settings" description="Saved settings are used for rates, accounts, and default forecast mode.">
+        {settingsForm ? (
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void handleSaveSettings(event)}>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Municipality code
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.municipality_code} onChange={(event) => setSettingsForm({ ...settingsForm, municipality_code: event.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Municipal tax rate (decimal)
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.municipal_tax_rate} onChange={(event) => setSettingsForm({ ...settingsForm, municipal_tax_rate: event.target.value })} placeholder="0.32" />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
+              <input type="checkbox" checked={settingsForm.church_tax_enabled} onChange={(event) => setSettingsForm({ ...settingsForm, church_tax_enabled: event.target.checked })} />
+              Church tax enabled
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Church tax rate (decimal)
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.church_tax_rate} onChange={(event) => setSettingsForm({ ...settingsForm, church_tax_rate: event.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Egenavgifter rate (decimal)
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.egenavgifter_rate} onChange={(event) => setSettingsForm({ ...settingsForm, egenavgifter_rate: event.target.value })} placeholder="0.2897" />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
+              <input type="checkbox" checked={settingsForm.state_tax_enabled} onChange={(event) => setSettingsForm({ ...settingsForm, state_tax_enabled: event.target.checked })} />
+              State income tax enabled
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              State tax rate (decimal)
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.state_tax_rate} onChange={(event) => setSettingsForm({ ...settingsForm, state_tax_rate: event.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              State tax threshold (SEK)
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.state_tax_threshold} onChange={(event) => setSettingsForm({ ...settingsForm, state_tax_threshold: event.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Tax reserve account
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.tax_reserve_account} onChange={(event) => setSettingsForm({ ...settingsForm, tax_reserve_account: event.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+              Operating bank account
+              <input className="h-11 rounded-lg border border-gray-200 px-4 text-sm" value={settingsForm.operating_bank_account} onChange={(event) => setSettingsForm({ ...settingsForm, operating_bank_account: event.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-500 md:col-span-2">
+              Default forecast mode
+              <select
+                className="h-11 rounded-lg border border-gray-200 px-4 text-sm"
+                value={settingsForm.forecast_default_mode}
+                onChange={(event) => setSettingsForm({ ...settingsForm, forecast_default_mode: event.target.value as TaxForecastMode })}
+              >
+                {forecastModeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+              <button className="btn btn-primary" type="submit" disabled={isSavingSettings}>
+                {isSavingSettings ? "Saving..." : "Save tax settings"}
+              </button>
+              {settingsMessage ? <span className="text-sm text-emerald-700">{settingsMessage}</span> : null}
+              {settingsError ? <span className="text-sm text-red-700">{settingsError}</span> : null}
+            </div>
+          </form>
+        ) : (
+          <FinanceLoadingMessage message="Loading tax settings…" />
+        )}
+      </FinancePanel>
     </div>
   );
 }
@@ -4431,7 +5106,7 @@ function ReportsTab() {
               {isGenerating ? "Generating..." : "Generate SIE4"}
             </button>
             {!isFinanceApiConfigured ? <p className="mt-3 text-sm text-amber-700">Set VITE_KWSTUDIO_API_URL to enable backend exports.</p> : null}
-            {exportError ? <pre className="mt-4 overflow-auto rounded-lg bg-red-50 p-3 text-xs leading-5 text-red-800">{exportError}</pre> : null}
+            {exportError ? <FinanceErrorBanner message={exportError} onRetry={() => void handleSieExport()} /> : null}
           </div>
 
           <div className="rounded-xl border border-gray-100 p-4">
@@ -4454,7 +5129,7 @@ function ReportsTab() {
                 <FinanceDefinitionList
                   rows={[
                     { label: "Filename", value: exportResult.filename },
-                    { label: "Created", value: formatShortDate(exportResult.created) },
+                    { label: "Created", value: formatFinanceDate(exportResult.created) },
                     { label: "Verifications", value: String(exportResult.verifications) },
                     { label: "Accounts", value: String(exportResult.accounts) },
                     { label: "Warnings", value: String(exportResult.validation.warnings.length) },
@@ -4466,20 +5141,14 @@ function ReportsTab() {
             )}
 
             {validation?.warnings.length ? (
-              <div className="mt-4 rounded-lg bg-amber-50 p-3">
-                <h4 className="text-sm font-semibold text-amber-900">Warnings</h4>
-                <ul className="mt-2 space-y-1 text-sm leading-6 text-amber-800">
-                  {validation.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-                </ul>
+              <div className="mt-4">
+                <FinanceValidationMessageList items={validation.warnings} tone="warning" title="Warnings" />
               </div>
             ) : null}
 
             {validation?.errors.length ? (
-              <div className="mt-4 rounded-lg bg-red-50 p-3">
-                <h4 className="text-sm font-semibold text-red-900">Errors</h4>
-                <ul className="mt-2 space-y-1 text-sm leading-6 text-red-800">
-                  {validation.errors.map((error) => <li key={error}>{error}</li>)}
-                </ul>
+              <div className="mt-4">
+                <FinanceValidationMessageList items={validation.errors} tone="error" title="Errors" />
               </div>
             ) : null}
           </div>
@@ -4604,6 +5273,8 @@ export function FinancePage() {
   const [backendReceipts, setBackendReceipts] = useState<FinanceReceiptDto[]>([]);
   const [backendOwnerExpenses, setBackendOwnerExpenses] = useState<OwnerExpenseDto[]>([]);
   const [backendRefreshKey, setBackendRefreshKey] = useState(0);
+  const [isLoadingBackendData, setIsLoadingBackendData] = useState(isFinanceApiConfigured);
+  const [backendLoadError, setBackendLoadError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importResultState, setImportResultState] = useState<FinanceImportResultDto | null>(null);
@@ -4639,7 +5310,14 @@ export function FinancePage() {
   }
 
   useEffect(() => {
+    if (!isFinanceApiConfigured) {
+      setIsLoadingBackendData(false);
+      return undefined;
+    }
+
     let isMounted = true;
+    setIsLoadingBackendData(true);
+    setBackendLoadError(null);
 
     Promise.all([
       getFinanceImports(),
@@ -4650,24 +5328,41 @@ export function FinancePage() {
       .then(([importsResult, transactionsResult, receiptsResult, ownerExpensesResult]) => {
         if (!isMounted) return;
 
+        const failures: string[] = [];
         if (importsResult.ok && importsResult.data) {
           setBackendImports(importsResult.data.imports);
+        } else if (!importsResult.ok) {
+          failures.push(importsResult.error ?? "Could not load imports.");
         }
 
         if (transactionsResult.ok && transactionsResult.data) {
           setBackendTransactions(transactionsResult.data.transactions.map(mapBackendTransaction));
+        } else if (!transactionsResult.ok) {
+          failures.push(transactionsResult.error ?? "Could not load transactions.");
         }
 
         if (receiptsResult.ok && receiptsResult.data) {
           setBackendReceipts(receiptsResult.data.receipts);
+        } else if (!receiptsResult.ok) {
+          failures.push(receiptsResult.error ?? "Could not load receipts.");
         }
 
         if (ownerExpensesResult.ok && ownerExpensesResult.data) {
           setBackendOwnerExpenses(ownerExpensesResult.data.ownerExpenses ?? []);
+        } else if (!ownerExpensesResult.ok) {
+          failures.push(ownerExpensesResult.error ?? "Could not load owner expenses.");
+        }
+
+        if (failures.length > 0) {
+          setBackendLoadError(failures[0] ?? "Could not load finance data from the API.");
         }
       })
-      .catch((error) => {
-        console.warn("Could not load backend finance data. Demo fallback remains active.", error);
+      .catch(() => {
+        if (!isMounted) return;
+        setBackendLoadError("Could not load finance data from the API. Demo fallback may be shown where applicable.");
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingBackendData(false);
       });
 
     return () => {
@@ -4704,6 +5399,21 @@ export function FinancePage() {
         activeTab={activeTab}
         onChange={(tabId) => setSearchParams(tabId === "overview" ? {} : { tab: tabId })}
       />
+
+      {isFinanceApiConfigured && isLoadingBackendData ? (
+        <div className="mb-6">
+          <FinanceLoadingMessage message="Loading finance data…" />
+        </div>
+      ) : null}
+
+      {backendLoadError ? (
+        <div className="mb-6">
+          <FinanceErrorBanner
+            message={backendLoadError}
+            onRetry={() => setBackendRefreshKey((value) => value + 1)}
+          />
+        </div>
+      ) : null}
 
       {renderFinanceTab(activeTab, {
         backendImports,
