@@ -4,7 +4,10 @@ import { Footer } from "~/components/footer";
 import { JsonLd } from "~/components/jsonld";
 import { Navigation } from "~/components/navigation";
 import { useI18n } from "~/i18n";
-import { breadcrumbSchema, buildMeta, webPageSchema } from "~/lib/seo";
+import { breadcrumbSchema, buildMeta, interpolateCompanyName, webPageSchema } from "~/lib/seo";
+import { interpolateBusinessIdentity } from "~/settings/interpolateBusinessIdentity";
+import { usePublicWebsiteSettings } from "~/settings/usePublicWebsiteSettings";
+import { getPortalBrandInitials } from "~/settings/portalHelpers";
 import { notifyEnquiryEmail } from "~/utils/enquiry-email";
 import { supabase } from "~/utils/supabase";
 
@@ -22,6 +25,14 @@ export function meta() {
 
 export default function ContactPage() {
   const { t, dictionary } = useI18n();
+  const website = usePublicWebsiteSettings();
+  const companyName = website.companyName;
+  const contactEmail = website.contactEmail;
+  const identity = { companyName, contactEmail };
+  const localize = (text: string) => interpolateBusinessIdentity(text, identity);
+  const brandInitials = getPortalBrandInitials(companyName);
+  const pageTitleResolved = interpolateCompanyName(pageTitle, companyName);
+  const pageDescriptionResolved = interpolateCompanyName(pageDescription, companyName);
   const contactDetails = dictionary.contact.details as Array<{
     label: string;
     value: string;
@@ -43,15 +54,15 @@ export default function ContactPage() {
       email: String(formData.get("email") ?? "").trim(),
       budget: null,
       message: String(formData.get("message") ?? "").trim(),
-      recipient: "hello@kwstudio.se",
-      subject: "KWStudio Contact Message",
+      recipient: contactEmail,
+      subject: `${companyName} Contact Message`,
     };
 
     const { error } = await supabase.from("enquiries").insert(enquiry);
 
     if (error) {
       console.error("Could not save contact message.", error);
-      setSubmitError(t("contact.error"));
+      setSubmitError(localize(t("contact.error")));
       setIsSubmitting(false);
       return;
     }
@@ -61,6 +72,9 @@ export default function ContactPage() {
       email: enquiry.email,
       message: enquiry.message,
       source: "contact",
+      recipient: contactEmail,
+      subject: enquiry.subject,
+      companyName,
     });
 
     setSubmitted(true);
@@ -71,7 +85,7 @@ export default function ContactPage() {
     <>
       <JsonLd
         data={[
-          webPageSchema({ path: "/contact", title: pageTitle, description: pageDescription }),
+          webPageSchema({ path: "/contact", title: pageTitleResolved, description: pageDescriptionResolved }),
           breadcrumbSchema([
             { name: t("nav.home"), path: "/" },
             { name: t("nav.contact"), path: "/contact" },
@@ -87,15 +101,15 @@ export default function ContactPage() {
               <h1>{t("contact.hero.title")}</h1>
               <p>{t("contact.hero.text")}</p>
               <div className="contact-desk-actions">
-                <a href="mailto:hello@kwstudio.se">
-                  hello@kwstudio.se <ArrowUpRight size={18} aria-hidden="true" />
+                <a href={`mailto:${contactEmail}`}>
+                  {contactEmail} <ArrowUpRight size={18} aria-hidden="true" />
                 </a>
                 <span>{t("contact.founder.reply")}</span>
               </div>
             </div>
 
             <aside className="contact-desk-card" aria-label={t("contact.welcome.eyebrow")}>
-              <span>KW</span>
+              <span>{brandInitials}</span>
               <h2>{t("contact.welcome.title")}</h2>
               <p>{t("contact.welcome.text")}</p>
             </aside>
@@ -118,8 +132,8 @@ export default function ContactPage() {
                       <Icon size={20} aria-hidden="true" />
                       <div>
                         <span>{detail.label}</span>
-                        <strong>{detail.value}</strong>
-                        <p>{detail.text}</p>
+                        <strong>{localize(detail.value)}</strong>
+                        <p>{localize(detail.text)}</p>
                       </div>
                     </article>
                   );
@@ -131,7 +145,7 @@ export default function ContactPage() {
               {submitted ? (
                 <div className="contact-success" role="status" aria-live="polite">
                   <h2>{t("contact.successTitle")}</h2>
-                  <p>{t("contact.successText")}</p>
+                  <p>{localize(t("contact.successText"))}</p>
                   <span>{t("contact.successNote")}</span>
                   <div>
                     <a href="/work">{t("common.viewWork")}</a>

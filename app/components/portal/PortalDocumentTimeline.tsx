@@ -39,7 +39,7 @@ export function PortalDocumentTimeline({ timeline }: PortalDocumentTimelineProps
       <ol className="mt-4 space-y-4" aria-label="Document activity timeline">
         {timeline.map((event) => (
           <li key={event.id} className="relative border-l-2 border-gray-200 pl-4">
-            <span className="absolute -left-[5px] top-1.5 size-2 rounded-full bg-[#2E75BD]" aria-hidden="true" />
+            <span className="absolute -left-[5px] top-1.5 size-2 rounded-full bg-kw-brand" aria-hidden="true" />
             <p className="text-sm font-medium text-gray-800">{formatEventTitle(event.eventType)}</p>
             <p className="mt-0.5 text-xs text-gray-500">{formatDateTime(event.createdAt)}</p>
             {typeof event.metadata.comment === "string" && event.metadata.comment ? (

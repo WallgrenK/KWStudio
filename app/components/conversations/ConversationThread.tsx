@@ -51,7 +51,7 @@ export function ConversationThread({ messages, mode, onAttachAsset }: Conversati
             <div
               className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                 isOwnSide
-                  ? "bg-[#2E75BD] text-white"
+                  ? "bg-kw-brand text-white"
                   : "border border-gray-200 bg-white text-gray-900"
               }`}
             >
@@ -72,7 +72,7 @@ export function ConversationThread({ messages, mode, onAttachAsset }: Conversati
                   <button
                     type="button"
                     onClick={() => onAttachAsset(message.id)}
-                    className={`underline ${isOwnSide ? "text-blue-100" : "text-[#2E75BD]"}`}
+                    className={`underline ${isOwnSide ? "text-blue-100" : "text-kw-brand"}`}
                   >
                     Attach asset
                   </button>

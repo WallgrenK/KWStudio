@@ -154,7 +154,7 @@ function PricingFields({ block, isReadOnly, updateBlock, setFocusedField }: Edit
         {!isReadOnly ? (
           <button
             type="button"
-            className="text-sm text-[#2E75BD] hover:underline"
+            className="text-sm text-kw-brand hover:underline"
             onClick={() =>
               patchContent({
                 lineItems: [...lineItems, { label: "Service", quantity: 1, unitPrice: 0, vatRate: 25, type: "one_time" }],
@@ -210,7 +210,7 @@ function PricingFields({ block, isReadOnly, updateBlock, setFocusedField }: Edit
         {!isReadOnly ? (
           <button
             type="button"
-            className="text-sm text-[#2E75BD] hover:underline"
+            className="text-sm text-kw-brand hover:underline"
             onClick={() => patchContent({ discounts: [...discounts, { label: "Discount" }] })}
           >
             Add discount

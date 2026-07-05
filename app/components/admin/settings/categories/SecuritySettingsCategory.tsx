@@ -1,62 +1,78 @@
-import { useCallback } from "react";
-import { useSettingsContext } from "../SettingsContext";
-import { SettingsFieldStack, SettingsGroup, settingsInputClassName } from "../SettingsGroup";
-import { SettingsComingSoonBadge } from "../SettingsStatusBadge";
+import {
+  FinanceErrorBanner,
+  FinanceLoadingMessage,
+} from "~/components/admin/finance/FinanceFeedback";
+import { SettingsFieldRow, SettingsFieldStack, SettingsGroup, settingsInputClassName } from "../SettingsGroup";
 import { SettingsSection } from "../SettingsSection";
-import { useSettingsCategoryRegistration, useSettingsForm } from "../useSettingsForm";
-
-type SecurityFormState = {
-  authentication: string;
-  sessions: string;
-  roles: string;
-  auditLogs: string;
-  apiKeys: string;
-};
-
-const INITIAL: SecurityFormState = {
-  authentication: "Supabase Auth (session active in admin)",
-  sessions: "Not configured",
-  roles: "Not configured",
-  auditLogs: "Not configured",
-  apiKeys: "Not configured",
-};
+import {
+  EMPTY_SECURITY_FORM,
+  securityToFormState,
+  securityToPatch,
+} from "../settingsCategoryForms";
+import { usePersistedSettingsCategory } from "../usePersistedSettingsCategory";
 
 export function SecuritySettingsCategory() {
-  const { registerHandlers, unregisterHandlers } = useSettingsContext();
-  const { values, isDirty, reset, markSaved } = useSettingsForm(INITIAL);
-
-  const save = useCallback(() => {
-    markSaved();
-  }, [markSaved]);
-
-  useSettingsCategoryRegistration("security", isDirty, save, reset, registerHandlers, unregisterHandlers);
+  const { values, setField, isLoading, loadError, saveError } = usePersistedSettingsCategory({
+    categoryId: "security",
+    emptyForm: EMPTY_SECURITY_FORM,
+    toFormState: securityToFormState,
+    toPatch: securityToPatch,
+  });
 
   return (
     <SettingsSection
       title="Security"
-      description="Authentication, access control, and audit visibility."
+      description="Session, access, and portal security defaults."
     >
-      <SettingsFieldStack>
-        <SettingsGroup label="Authentication" htmlFor="security-authentication">
-          <input id="security-authentication" className={settingsInputClassName(true)} value={values.authentication} disabled />
-        </SettingsGroup>
-        <SettingsGroup label="Sessions" htmlFor="security-sessions">
-          <input id="security-sessions" className={settingsInputClassName(true)} value={values.sessions} disabled />
-        </SettingsGroup>
-        <SettingsGroup label="Roles" htmlFor="security-roles">
-          <input id="security-roles" className={settingsInputClassName(true)} value={values.roles} disabled />
-        </SettingsGroup>
-        <SettingsGroup label="Audit logs" htmlFor="security-audit-logs">
-          <input id="security-audit-logs" className={settingsInputClassName(true)} value={values.auditLogs} disabled />
-        </SettingsGroup>
-        <SettingsGroup label="API keys" htmlFor="security-api-keys">
-          <input id="security-api-keys" className={settingsInputClassName(true)} value={values.apiKeys} disabled />
-        </SettingsGroup>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <SettingsComingSoonBadge />
-          <span>Sessions, roles, audit logs, and API keys will be configurable when backend support is added.</span>
-        </div>
-      </SettingsFieldStack>
+      {isLoading ? (
+        <FinanceLoadingMessage message="Loading security settings…" />
+      ) : loadError ? (
+        <FinanceErrorBanner message={loadError} />
+      ) : (
+        <SettingsFieldStack>
+          <SettingsFieldRow>
+            <SettingsGroup label="Session timeout (minutes)" htmlFor="security-session-timeout">
+              <input
+                id="security-session-timeout"
+                className={settingsInputClassName()}
+                value={values.sessionTimeoutMinutes}
+                onChange={(event) => setField("sessionTimeoutMinutes", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Invite TTL (days)" htmlFor="security-invite-ttl">
+              <input
+                id="security-invite-ttl"
+                className={settingsInputClassName()}
+                value={values.inviteTtlDays}
+                onChange={(event) => setField("inviteTtlDays", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <SettingsFieldRow>
+            <SettingsGroup label="Password min length" htmlFor="security-password-min">
+              <input
+                id="security-password-min"
+                className={settingsInputClassName()}
+                value={values.passwordMinLength}
+                onChange={(event) => setField("passwordMinLength", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Allowed origins" htmlFor="security-allowed-origins">
+              <input
+                id="security-allowed-origins"
+                className={settingsInputClassName()}
+                value={values.allowedOrigins}
+                placeholder="https://staging.kwstudio.se, https://preview.kwstudio.se"
+                onChange={(event) => setField("allowedOrigins", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <p className="text-sm text-gray-500">
+            Environment CORS origins are always allowed. Values here are additive. API keys and SMTP secrets remain in environment variables.
+          </p>
+          {saveError ? <FinanceErrorBanner message={saveError} /> : null}
+        </SettingsFieldStack>
+      )}
     </SettingsSection>
   );
 }

@@ -56,7 +56,7 @@ export function DocumentDistributionPanel({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="btn btn-primary inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+            className="btn btn-primary inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
             onClick={onSend}
             disabled={!canSend || actionLoading !== null}
             aria-label="Send document to client"

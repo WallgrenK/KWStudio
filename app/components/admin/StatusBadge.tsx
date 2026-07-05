@@ -55,7 +55,7 @@ type BadgeProps = {
 // Used by StatCard for trend indicators and anywhere a fully custom badge is needed.
 
 const BADGE_LIGHT_COLORS: Record<BadgeColor, string> = {
-  primary: "bg-[#eff6ff] text-[#2E75BD]",
+  primary: "bg-[#eff6ff] text-kw-brand",
   success: "bg-green-50 text-green-600",
   error:   "bg-red-50 text-red-600",
   warning: "bg-amber-50 text-amber-600",
@@ -69,7 +69,7 @@ const BADGE_LIGHT_COLORS: Record<BadgeColor, string> = {
 };
 
 const BADGE_SOLID_COLORS: Record<BadgeColor, string> = {
-  primary: "bg-[#2E75BD] text-white",
+  primary: "bg-kw-brand text-white",
   success: "bg-green-500 text-white",
   error:   "bg-red-500 text-white",
   warning: "bg-amber-500 text-white",
@@ -200,7 +200,7 @@ const STATUS_MAP: Record<string, StatusConfig> = {
 
 // Color styles for StatusBadge (slightly more padded than Badge for readability)
 const STATUS_COLOR_STYLES: Record<BadgeColor, string> = {
-  primary: "bg-[#eff6ff] text-[#2E75BD]",
+  primary: "bg-[#eff6ff] text-kw-brand",
   success: "bg-green-50 text-green-700",
   error:   "bg-red-50 text-red-700",
   warning: "bg-amber-50 text-amber-700",

@@ -47,13 +47,13 @@ export function LeadWorkspaceModal({
         <header className="sticky top-0 z-10 border-b border-gray-100 bg-white">
           <div className="flex flex-col gap-4 px-5 py-5 md:flex-row md:items-start md:justify-between md:px-6">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#2E75BD]">Lead Workspace</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-kw-brand">Lead Workspace</p>
               <h2 id="lead-workspace-title" className="mt-1 truncate text-2xl font-semibold text-gray-900">{data.companyName}</h2>
               <p className="mt-1 truncate text-sm text-gray-500">{data.location}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {data.copiedMessage ? (
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[#2E75BD]">{data.copiedMessage}</span>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-kw-brand">{data.copiedMessage}</span>
               ) : null}
               {data.hasInsight ? (
                 <button className="btn btn-outline" type="button" onClick={actions.onCopyEmail}>
@@ -68,7 +68,7 @@ export function LeadWorkspaceModal({
               </button>
               <button
                 aria-label="Close lead workspace"
-                className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 transition hover:border-kw-brand hover:text-kw-brand"
                 type="button"
                 onClick={onClose}
               >

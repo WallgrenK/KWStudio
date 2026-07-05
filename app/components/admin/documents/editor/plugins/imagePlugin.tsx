@@ -67,8 +67,8 @@ function AssetPicker({
             disabled={disabled}
             className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm ${
               selectedAssetId === asset.id
-                ? "border-[#2E75BD] bg-[#eff6ff] text-[#2E75BD]"
-                : "border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+                ? "border-kw-brand bg-[#eff6ff] text-kw-brand"
+                : "border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
             }`}
             onClick={() => onSelect(asset)}
           >

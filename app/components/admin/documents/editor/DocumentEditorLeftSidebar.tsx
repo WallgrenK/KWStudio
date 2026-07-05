@@ -37,7 +37,7 @@ export function DocumentEditorLeftSidebar() {
                   key={block.clientId}
                   type="button"
                   className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-sm ${
-                    isSelected ? "bg-[#eff6ff] text-[#2E75BD]" : "text-gray-700 hover:bg-white"
+                    isSelected ? "bg-[#eff6ff] text-kw-brand" : "text-gray-700 hover:bg-white"
                   }`}
                   onClick={() => selectBlock(block.clientId)}
                 >
@@ -65,7 +65,7 @@ export function DocumentEditorLeftSidebar() {
                     <button
                       key={plugin.blockType}
                       type="button"
-                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 hover:border-[#2E75BD]"
+                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 hover:border-kw-brand"
                       onClick={() => insertBlock(plugin.blockType as DocumentBlockType)}
                     >
                       {plugin.label}

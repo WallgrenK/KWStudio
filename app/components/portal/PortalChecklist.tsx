@@ -46,7 +46,7 @@ function StatusIndicator({ item }: { item: PortalChecklistItem }) {
   if (item.completed) {
     return (
       <span
-        className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-[#2E75BD] bg-[#2E75BD] text-white"
+        className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-kw-brand bg-kw-brand text-white"
         aria-hidden="true"
       >
         <Check className="size-3" />
@@ -69,13 +69,13 @@ function StatusIndicator({ item }: { item: PortalChecklistItem }) {
     <span
       className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border ${
         item.status === "in_progress"
-          ? "border-[#2E75BD] bg-[#2E75BD]/10"
+          ? "border-kw-brand bg-kw-brand/10"
           : "border-gray-300 bg-white"
       }`}
       aria-hidden="true"
     >
       {item.status === "in_progress" ? (
-        <span className="size-2 rounded-full bg-[#2E75BD]" />
+        <span className="size-2 rounded-full bg-kw-brand" />
       ) : null}
     </span>
   );
@@ -112,7 +112,7 @@ function ChecklistRow({
         <div className="min-w-0 flex-1">
           <button
             type="button"
-            className="flex w-full items-start justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2 rounded-lg"
+            className="flex w-full items-start justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2 rounded-lg"
             aria-expanded={expanded}
             aria-controls={`checklist-panel-${item.id}`}
             onClick={onToggle}
@@ -200,7 +200,7 @@ function ChecklistRow({
             {canComplete ? (
               <div className="space-y-2">
                 <button
-                  className="inline-flex items-center justify-center rounded-lg bg-[#2E75BD] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2563a8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center justify-center rounded-lg bg-kw-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2563a8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                   type="button"
                   disabled={isCompleting}
                   aria-label={`Complete ${item.label}`}
@@ -269,7 +269,7 @@ export function PortalChecklist({
   }
 
   return (
-    <PortalCard className="border-[#2E75BD]/15 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)]">
+    <PortalCard className="border-kw-brand/15 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)]">
       <ul className="space-y-3">
         {items.map((item) => (
           <ChecklistRow

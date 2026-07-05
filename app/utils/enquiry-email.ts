@@ -8,6 +8,9 @@ type EnquiryEmailPayload = {
     message: string;
     source: "contact" | "start-a-project";
     enquiryId?: string | null;
+    recipient?: string;
+    subject?: string;
+    companyName?: string;
 };
 
 export async function notifyEnquiryEmail(payload: EnquiryEmailPayload) {

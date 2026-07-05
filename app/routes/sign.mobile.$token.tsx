@@ -141,7 +141,7 @@ export default function MobileSigningPage() {
     <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-gray-950">
       <div className="mx-auto w-full max-w-lg">
         <header className="mb-6 text-center">
-          <p className="text-sm font-medium uppercase tracking-wide text-[#2E75BD]">KWStudio Signing</p>
+          <p className="text-sm font-medium uppercase tracking-wide text-kw-brand">KWStudio Signing</p>
           <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">Sign document</h1>
         </header>
 
@@ -271,7 +271,7 @@ export default function MobileSigningPage() {
 
         <p className="mt-8 text-center text-xs text-gray-400">
           Secure mobile signing ·{" "}
-          <Link to="/login" className="text-[#2E75BD] hover:underline">
+          <Link to="/login" className="text-kw-brand hover:underline">
             Portal login
           </Link>
         </p>

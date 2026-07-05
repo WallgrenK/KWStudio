@@ -57,7 +57,7 @@ export const ACTION_TYPE_STYLES: Record<ActionType, { badge: string; icon: strin
 
 export const PRIORITY_STYLES: Record<string, string> = {
   low: "bg-gray-100 text-gray-600",
-  normal: "bg-[#2E75BD]/10 text-[#2E75BD]",
+  normal: "bg-kw-brand/10 text-kw-brand",
   high: "bg-orange-100 text-orange-800",
 };
 

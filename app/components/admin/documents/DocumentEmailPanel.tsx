@@ -120,7 +120,7 @@ export function DocumentEmailPanel({
         </div>
         <button
           type="button"
-          className="btn inline-flex border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+          className="btn inline-flex border border-gray-200 bg-white text-gray-700 hover:border-kw-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
           disabled={!canSendEmail || !emailAvailable || loading}
           onClick={() => void handleOpen()}
         >

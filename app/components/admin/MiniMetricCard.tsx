@@ -27,7 +27,7 @@ export function MiniMetricCard({ label, value, detail, href, icon: Icon }: MiniM
     </>
   );
 
-  const className = "rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-[#2E75BD]";
+  const className = "rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-kw-brand";
 
   if (href) {
     return (

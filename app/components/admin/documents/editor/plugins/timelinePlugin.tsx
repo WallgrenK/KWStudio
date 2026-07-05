@@ -91,7 +91,7 @@ export const timelinePlugin: EditorPlugin = {
         {!isReadOnly ? (
           <button
             type="button"
-            className="text-sm text-[#2E75BD] hover:underline"
+            className="text-sm text-kw-brand hover:underline"
             onClick={() => patchItems([...items, { title: "Milestone", date: "", description: "" }])}
           >
             Add milestone

@@ -1,73 +1,118 @@
-import { useCallback } from "react";
-import { useSettingsContext } from "../SettingsContext";
+import {
+  FinanceErrorBanner,
+  FinanceLoadingMessage,
+} from "~/components/admin/finance/FinanceFeedback";
 import { SettingsFieldRow, SettingsFieldStack, SettingsGroup, settingsInputClassName } from "../SettingsGroup";
-import { SettingsComingSoonBadge } from "../SettingsStatusBadge";
 import { SettingsSection } from "../SettingsSection";
-import { useSettingsCategoryRegistration, useSettingsForm } from "../useSettingsForm";
-
-type FinanceFormState = {
-  fiscalYear: string;
-  defaultCurrency: string;
-  basAccountPlan: string;
-  defaultPaymentAccount: string;
-  reserveAccount: string;
-  defaultVatRate: string;
-};
-
-const INITIAL: FinanceFormState = {
-  fiscalYear: "Calendar year (Jan–Dec)",
-  defaultCurrency: "SEK",
-  basAccountPlan: "BAS 2024",
-  defaultPaymentAccount: "1930",
-  reserveAccount: "2018",
-  defaultVatRate: "25",
-};
+import {
+  EMPTY_FINANCE_FORM,
+  financeToFormState,
+  financeToPatch,
+} from "../settingsCategoryForms";
+import { usePersistedSettingsCategory } from "../usePersistedSettingsCategory";
 
 export function FinanceSettingsCategory() {
-  const { registerHandlers, unregisterHandlers } = useSettingsContext();
-  const { values, isDirty, reset, markSaved } = useSettingsForm(INITIAL);
-
-  const save = useCallback(() => {
-    markSaved();
-  }, [markSaved]);
-
-  useSettingsCategoryRegistration("finance", isDirty, save, reset, registerHandlers, unregisterHandlers);
+  const { values, setField, isLoading, loadError, saveError } = usePersistedSettingsCategory({
+    categoryId: "finance",
+    emptyForm: EMPTY_FINANCE_FORM,
+    toFormState: financeToFormState,
+    toPatch: financeToPatch,
+  });
 
   return (
     <SettingsSection
       title="Finance"
       description="Default finance configuration for ledger accounts, fiscal periods, and VAT."
     >
-      <SettingsFieldStack>
-        <SettingsFieldRow>
-          <SettingsGroup label="Fiscal year" htmlFor="finance-fiscal-year">
-            <input id="finance-fiscal-year" className={settingsInputClassName(true)} value={values.fiscalYear} disabled />
+      {isLoading ? (
+        <FinanceLoadingMessage message="Loading finance settings…" />
+      ) : loadError ? (
+        <FinanceErrorBanner message={loadError} />
+      ) : (
+        <SettingsFieldStack>
+          <SettingsFieldRow>
+            <SettingsGroup label="Fiscal year" htmlFor="finance-fiscal-year">
+              <input
+                id="finance-fiscal-year"
+                className={settingsInputClassName()}
+                value={values.fiscalYear}
+                onChange={(event) => setField("fiscalYear", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Default currency" htmlFor="finance-default-currency">
+              <input
+                id="finance-default-currency"
+                className={settingsInputClassName()}
+                value={values.defaultCurrency}
+                onChange={(event) => setField("defaultCurrency", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <SettingsFieldRow>
+            <SettingsGroup label="BAS account plan" htmlFor="finance-bas-plan">
+              <input
+                id="finance-bas-plan"
+                className={settingsInputClassName()}
+                value={values.basAccountPlan}
+                onChange={(event) => setField("basAccountPlan", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Default payment account" htmlFor="finance-payment-account">
+              <input
+                id="finance-payment-account"
+                className={settingsInputClassName()}
+                value={values.defaultPaymentAccount}
+                onChange={(event) => setField("defaultPaymentAccount", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <SettingsFieldRow>
+            <SettingsGroup label="Reserve account" htmlFor="finance-reserve-account">
+              <input
+                id="finance-reserve-account"
+                className={settingsInputClassName()}
+                value={values.reserveAccount}
+                onChange={(event) => setField("reserveAccount", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Default VAT rate (%)" htmlFor="finance-default-vat-rate">
+              <input
+                id="finance-default-vat-rate"
+                className={settingsInputClassName()}
+                value={values.defaultVatRate}
+                onChange={(event) => setField("defaultVatRate", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <SettingsFieldRow>
+            <SettingsGroup label="Invoice number prefix" htmlFor="finance-invoice-prefix">
+              <input
+                id="finance-invoice-prefix"
+                className={settingsInputClassName()}
+                value={values.invoiceNumberPrefix}
+                onChange={(event) => setField("invoiceNumberPrefix", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Payment terms (days)" htmlFor="finance-payment-terms">
+              <input
+                id="finance-payment-terms"
+                className={settingsInputClassName()}
+                value={values.paymentTermsDays}
+                onChange={(event) => setField("paymentTermsDays", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <SettingsGroup label="Invoice footer" htmlFor="finance-invoice-footer">
+            <textarea
+              id="finance-invoice-footer"
+              className={`${settingsInputClassName()} min-h-20 py-3`}
+              value={values.invoiceFooter}
+              onChange={(event) => setField("invoiceFooter", event.target.value)}
+            />
           </SettingsGroup>
-          <SettingsGroup label="Default currency" htmlFor="finance-default-currency">
-            <input id="finance-default-currency" className={settingsInputClassName(true)} value={values.defaultCurrency} disabled />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <SettingsFieldRow>
-          <SettingsGroup label="BAS account plan" htmlFor="finance-bas-plan">
-            <input id="finance-bas-plan" className={settingsInputClassName(true)} value={values.basAccountPlan} disabled />
-          </SettingsGroup>
-          <SettingsGroup label="Default payment account" htmlFor="finance-payment-account">
-            <input id="finance-payment-account" className={settingsInputClassName(true)} value={values.defaultPaymentAccount} disabled />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <SettingsFieldRow>
-          <SettingsGroup label="Reserve account" htmlFor="finance-reserve-account">
-            <input id="finance-reserve-account" className={settingsInputClassName(true)} value={values.reserveAccount} disabled />
-          </SettingsGroup>
-          <SettingsGroup label="Default VAT rate" htmlFor="finance-default-vat-rate">
-            <input id="finance-default-vat-rate" className={settingsInputClassName(true)} value={values.defaultVatRate} disabled />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <SettingsComingSoonBadge />
-          <span>Finance defaults are read-only until general finance settings are implemented.</span>
-        </div>
-      </SettingsFieldStack>
+          {saveError ? <FinanceErrorBanner message={saveError} /> : null}
+        </SettingsFieldStack>
+      )}
     </SettingsSection>
   );
 }

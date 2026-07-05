@@ -30,7 +30,7 @@ export function DocumentEditorVersionPanel() {
               key={version.id}
               type="button"
               className={`w-full rounded-xl border px-3 py-2 text-left ${
-                isCurrent ? "border-[#2E75BD] bg-[#eff6ff]" : "border-gray-200 bg-white hover:border-[#2E75BD]"
+                isCurrent ? "border-kw-brand bg-[#eff6ff]" : "border-gray-200 bg-white hover:border-kw-brand"
               }`}
               onClick={() => void loadVersion(version.id)}
             >
@@ -50,7 +50,7 @@ export function DocumentEditorVersionPanel() {
         {!hasDraft && !isReadOnly ? (
           <button
             type="button"
-            className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+            className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
             disabled={Boolean(actionLoading)}
             onClick={() => void createDraftVersion()}
           >
@@ -59,7 +59,7 @@ export function DocumentEditorVersionPanel() {
         ) : null}
         <button
           type="button"
-          className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+          className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
           disabled={Boolean(actionLoading)}
           onClick={() => void createNewVersion()}
         >

@@ -17,7 +17,7 @@ export function LeadOverviewTab({ data }: { data: LeadWorkspaceData }) {
       </section>
 
       <section className="rounded-3xl border border-blue-100 bg-blue-50/60 p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#2E75BD]">Opportunity summary</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-kw-brand">Opportunity summary</p>
         <h3 className="mt-2 text-xl font-semibold text-gray-900">{data.opportunityTitle}</h3>
         <p className="mt-3 max-w-3xl text-sm leading-7 text-gray-700">{data.summary}</p>
       </section>

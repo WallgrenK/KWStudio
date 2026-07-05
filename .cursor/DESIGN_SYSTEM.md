@@ -12,6 +12,12 @@ Design principles:
 - Whitespace is intentional.
 - Every visual element supports the brand.
 
+### Brand color tokens
+
+- Canonical token: `--kw-brand` (default `#2E75BD`, overridden at runtime from Settings → Branding).
+- Tailwind utilities: `text-kw-brand`, `bg-kw-brand`, `border-kw-brand`, `ring-kw-brand`, with opacity modifiers (e.g. `bg-kw-brand/10`).
+- Legacy alias: `--blue` maps to `var(--kw-brand)` for existing marketing CSS.
+
 ## Typography
 
 - Headings should be confident, clear, and high contrast.
@@ -41,7 +47,7 @@ Avoid random spacing values.
 
 Primary accent:
 
-- KWStudio blue: `#2E75BD`
+- KWStudio blue: `var(--kw-brand)` (default `#2E75BD`)
 
 Base palette:
 

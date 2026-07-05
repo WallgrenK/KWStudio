@@ -261,7 +261,7 @@ export function PortalAccessPanel() {
                 <li key={client.id} className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm text-gray-700">{client.company_name}</span>
                   <Link
-                    className="text-sm font-medium text-[#2E75BD] hover:underline"
+                    className="text-sm font-medium text-kw-brand hover:underline"
                     to={`/admin/projects/new?clientId=${client.id}`}
                   >
                     New project

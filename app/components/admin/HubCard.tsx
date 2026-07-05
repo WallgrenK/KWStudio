@@ -29,7 +29,7 @@ export function HubCard({ title, description, href, status, icon: Icon }: HubCar
   );
 
   const className = `rounded-2xl border border-gray-200 bg-white p-5 transition ${
-    href ? "hover:border-[#2E75BD]" : "opacity-80"
+    href ? "hover:border-kw-brand" : "opacity-80"
   }`;
 
   if (href) {

@@ -53,7 +53,7 @@ export function DocumentEditorCanvas() {
           <div
             key={block.clientId}
             className={`rounded-2xl border bg-white transition ${
-              isSelected ? "border-[#2E75BD] shadow-sm" : "border-gray-200 hover:border-gray-300"
+              isSelected ? "border-kw-brand shadow-sm" : "border-gray-200 hover:border-gray-300"
             }`}
             onMouseEnter={() => hoverBlock(block.clientId)}
             onMouseLeave={() => hoverBlock(null)}

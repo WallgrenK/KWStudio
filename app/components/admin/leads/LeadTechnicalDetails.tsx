@@ -21,7 +21,7 @@ export function LeadTechnicalDetails({ details }: LeadTechnicalDetailsProps) {
             <dt className="text-xs font-medium uppercase tracking-wide text-gray-400">{detail.label}</dt>
             <dd className="mt-1 truncate text-sm font-medium text-gray-800">
               {detail.href ? (
-                <a className="text-[#2E75BD]" href={detail.href} target="_blank" rel="noreferrer">
+                <a className="text-kw-brand" href={detail.href} target="_blank" rel="noreferrer">
                   {detail.value}
                 </a>
               ) : (

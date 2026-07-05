@@ -52,7 +52,7 @@ export function ConversationList({
                     {conversation.displayTitle}
                   </p>
                   {unread > 0 ? (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#2E75BD] px-1.5 text-xs font-semibold text-white">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-kw-brand px-1.5 text-xs font-semibold text-white">
                       {unread}
                     </span>
                   ) : null}

@@ -51,7 +51,7 @@ export const bulletListPlugin: EditorPlugin = {
         {!isReadOnly ? (
           <button
             type="button"
-            className="text-sm text-[#2E75BD] hover:underline"
+            className="text-sm text-kw-brand hover:underline"
             onClick={() => updateItems([...items, "New item"])}
           >
             Add item

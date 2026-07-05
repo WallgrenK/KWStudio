@@ -96,7 +96,6 @@ import {
   financeKpiGroups,
   financeOverview,
   financeQuickActions,
-  financeSettings,
   financeTabs,
   importMapping,
   importPreviewRows,
@@ -123,7 +122,12 @@ import {
   type FinanceTransaction,
   type JournalEntry,
 } from "~/data/finance";
-import { isSupabaseConfigured } from "~/lib/supabase";
+import { formatCurrency, formatShortDate } from "~/settings/formatters";
+import { useCompanyInfo } from "~/settings/useCompanyInfo";
+import { useFinanceSettings } from "~/settings/useFinanceSettings";
+import { useSettingsCategory } from "~/settings/useSettingsCategory";
+import { useFeatureFlag } from "~/settings/useFeatureFlag";
+import { resolveConfiguredLeadStage, resolveLeadOwnerLabel } from "~/settings/portalHelpers";
 import {
   formatFinanceAmount,
   formatFinanceDate,
@@ -248,7 +252,7 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
 function Progress({ value }: { value: number }) {
   return (
     <div className="h-2 rounded-full bg-gray-100">
-      <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${value}%` }} />
+      <div className="h-2 rounded-full bg-kw-brand" style={{ width: `${value}%` }} />
     </div>
   );
 }
@@ -379,16 +383,16 @@ export function DashboardPage() {
             </div>
             <div className="mt-4 space-y-3">
               {highValueOpportunities.map((lead) => (
-                <Link key={lead.id} to="/admin/pipeline" className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-[#2E75BD]">
+                <Link key={lead.id} to="/admin/pipeline" className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-kw-brand">
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</span>
-                    <span className="text-xs font-medium text-[#2E75BD]">{formatCurrency(lead.estimated_value)}</span>
+                    <span className="text-xs font-medium text-kw-brand">{formatCurrency(lead.estimated_value)}</span>
                   </div>
                   <p className="mt-1 truncate text-xs text-gray-500">{lead.next_action ?? lead.service_interest ?? "Review opportunity"}</p>
                 </Link>
               ))}
             </div>
-            <Link className="mt-4 inline-flex text-sm font-medium text-[#2E75BD]" to="/admin/pipeline">
+            <Link className="mt-4 inline-flex text-sm font-medium text-kw-brand" to="/admin/pipeline">
               View pipeline
             </Link>
           </Panel>
@@ -404,13 +408,13 @@ export function DashboardPage() {
           <AdminComingSoon
             title="Active projects"
             description="Project cards will load from the portal projects API. Use Projects in the sidebar for the current list view."
-            action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/projects">Open projects</Link>}
+            action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/projects">Open projects</Link>}
           />
         </div>
         <div className="col-span-12 xl:col-span-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">Recent leads</h2>
-            <Link className="text-sm font-medium text-[#2E75BD]" to="/admin/leads">View all</Link>
+            <Link className="text-sm font-medium text-kw-brand" to="/admin/leads">View all</Link>
           </div>
           <AdminTable columns={leadColumns.slice(0, 4)} rows={recentLeadRows} getRowKey={(lead) => lead.id} emptyMessage="No leads found." />
         </div>
@@ -465,7 +469,7 @@ function AdminTabs({
           key={tab.id}
           className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
             activeTab === tab.id
-              ? "bg-[#2E75BD] text-white"
+              ? "bg-kw-brand text-white"
               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
           }`}
           type="button"
@@ -476,18 +480,6 @@ function AdminTabs({
       ))}
     </div>
   );
-}
-
-function formatCurrency(value: number | null) {
-  if (!value) return "-";
-  return `${new Intl.NumberFormat("sv-SE").format(value)} SEK`;
-}
-
-function formatShortDate(value: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("sv-SE", { month: "short", day: "numeric" }).format(date);
 }
 
 function leadCompanyName(lead: LeadWithCompanyAndAudit) {
@@ -825,7 +817,7 @@ function ScoreBadge({ score }: { score: number | null }) {
   const style = value >= 75
     ? "bg-emerald-50 text-emerald-700"
     : value >= 50
-      ? "bg-blue-50 text-[#2E75BD]"
+      ? "bg-blue-50 text-kw-brand"
       : value >= 30
         ? "bg-amber-50 text-amber-700"
         : "bg-red-50 text-red-600";
@@ -839,7 +831,7 @@ function WebsiteBadge({ lead }: { lead: LeadWithCompanyAndAudit }) {
   }
 
   return (
-    <a className="block max-w-52 truncate text-sm font-medium text-[#2E75BD]" href={lead.company.website_url} target="_blank" rel="noreferrer">
+    <a className="block max-w-52 truncate text-sm font-medium text-kw-brand" href={lead.company.website_url} target="_blank" rel="noreferrer">
       {lead.company.website_url}
     </a>
   );
@@ -860,7 +852,7 @@ function SelectField({
     <label className="grid gap-1.5 text-xs font-medium text-gray-500">
       <span>{label}</span>
       <select
-        className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+        className="h-11 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-kw-brand focus:ring-3 focus:ring-kw-brand/10"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -952,7 +944,7 @@ function LeadPipeline({ leads }: { leads: LeadWithCompanyAndAudit[] }) {
           <h2 className="text-lg font-semibold text-gray-800">Lead pipeline</h2>
           <p className="mt-1 text-sm text-gray-500">From imported companies to won projects.</p>
         </div>
-        <span className="text-sm font-medium text-[#2E75BD]">{leads.length} active records</span>
+        <span className="text-sm font-medium text-kw-brand">{leads.length} active records</span>
       </div>
       <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {leadStageOrder.map((stage) => {
@@ -1038,7 +1030,7 @@ function LeadsTablePagination({
         <label className="flex items-center gap-2 text-sm text-gray-500">
           Rows
           <select
-            className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 outline-none transition focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+            className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 outline-none transition focus:border-kw-brand focus:ring-3 focus:ring-kw-brand/10"
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
           >
@@ -1049,7 +1041,7 @@ function LeadsTablePagination({
         </label>
         <div className="flex items-center gap-2">
           <button
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-kw-brand hover:text-kw-brand disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             disabled={currentPage <= 1}
             onClick={() => onPageChange(currentPage - 1)}
@@ -1060,7 +1052,7 @@ function LeadsTablePagination({
             {currentPage} / {totalPages}
           </span>
           <button
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:border-kw-brand hover:text-kw-brand disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             disabled={currentPage >= totalPages}
             onClick={() => onPageChange(currentPage + 1)}
@@ -1079,12 +1071,14 @@ function LeadDetailsPanel({
   onClose,
   onAudit,
   onQualify,
+  defaultLeadOwner,
 }: {
   lead: LeadWithCompanyAndAudit;
   isWorking: boolean;
   onClose: () => void;
   onAudit: (lead: LeadWithCompanyAndAudit) => void;
   onQualify: (lead: LeadWithCompanyAndAudit) => void;
+  defaultLeadOwner: string | null;
 }) {
   const websiteUrl = lead.company?.website_url;
   const opportunity = getLeadOpportunity(lead);
@@ -1218,7 +1212,7 @@ function LeadDetailsPanel({
     { label: "Lead source raw", value: lead.source ?? "-" },
     { label: "Company source", value: lead.company?.source ?? "-" },
     { label: "Service", value: lead.service_interest ?? recommendedService },
-    { label: "Owner", value: lead.assigned_to ?? "Kevin" },
+    { label: "Owner", value: resolveLeadOwnerLabel(lead.assigned_to, defaultLeadOwner) },
     { label: "Lead created", value: formatShortDate(lead.created_at) },
     { label: "Lead updated", value: formatShortDate(lead.updated_at) },
     { label: "Company created", value: formatShortDate(lead.company?.created_at ?? null) },
@@ -1303,9 +1297,13 @@ function LeadDetailsPanel({
 }
 
 export function LeadsPage() {
+  const developerSettings = useSettingsCategory("developer");
+  const scbLeadFinderEnabled = useFeatureFlag("scbLeadFinder");
+  const defaultLeadOwner = developerSettings.data.crm.defaultLeadOwner;
   const [query, setQuery] = useState("");
   const [source, setSource] = useState<LeadSource | "All">("All");
   const [stage, setStage] = useState<LeadStage | "All">("All");
+  const [stageInitialized, setStageInitialized] = useState(false);
   const [priority, setPriority] = useState<LeadPriority | "All">("All");
   const [service, setService] = useState<LeadServiceInterest | "All">("All");
   const [currentPage, setCurrentPage] = useState(1);
@@ -1317,6 +1315,19 @@ export function LeadsPage() {
   const [activeTab, setActiveTab] = useState<LeadWorkflowTab>("all");
   const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (stageInitialized || developerSettings.isLoading) return;
+    const configuredStage = resolveConfiguredLeadStage(
+      developerSettings.data.crm.defaultPipelineStage,
+      leadStageOrder,
+      mapLeadStage,
+    );
+    if (configuredStage !== "All") {
+      setStage(configuredStage as LeadStage);
+    }
+    setStageInitialized(true);
+  }, [developerSettings.data.crm.defaultPipelineStage, developerSettings.isLoading, stageInitialized]);
 
   const refreshLeads = async () => {
     setIsLoading(true);
@@ -1490,7 +1501,7 @@ export function LeadsPage() {
       key: "lead",
       header: "Lead / company",
       render: (lead) => (
-        <div className={`min-w-56 border-l-2 py-1 pl-3 ${mapLeadPriority(lead.priority) === "High" ? "border-[#2E75BD]" : "border-transparent"}`}>
+        <div className={`min-w-56 border-l-2 py-1 pl-3 ${mapLeadPriority(lead.priority) === "High" ? "border-kw-brand" : "border-transparent"}`}>
           <strong className="block text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</strong>
           <span className="mt-1 block truncate text-sm text-gray-500">{lead.company?.city ?? lead.company?.industry_label ?? "No company context"}</span>
         </div>
@@ -1519,14 +1530,14 @@ export function LeadsPage() {
       ),
     },
     { key: "next", header: "Next action", render: (lead) => <span className="block max-w-64 truncate text-sm text-gray-600">{lead.next_action ?? "Review lead"}</span> },
-    { key: "owner", header: "Owner", render: (lead) => <span className="whitespace-nowrap text-sm text-gray-600">{lead.assigned_to ?? "Kevin"}</span> },
+    { key: "owner", header: "Owner", render: (lead) => <span className="whitespace-nowrap text-sm text-gray-600">{resolveLeadOwnerLabel(lead.assigned_to, defaultLeadOwner)}</span> },
     {
       key: "actions",
       header: "Actions",
       render: (lead) => (
         <div className="flex flex-wrap gap-2">
           <button
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:border-kw-brand hover:text-kw-brand"
             type="button"
             onClick={() => setSelectedLeadId(lead.id)}
           >
@@ -1564,16 +1575,18 @@ export function LeadsPage() {
               <p className="text-sm font-medium text-gray-800">Lead workspace</p>
               <p className="mt-1 text-sm text-gray-500">Filter, qualify and audit individual opportunities.</p>
             </div>
-            <button
-              className="btn btn-outline"
-              type="button"
-              onClick={() => setIsDiscoveryOpen((current) => !current)}
-            >
-              {isDiscoveryOpen ? "Hide SCB tools" : "Show SCB tools"}
-            </button>
+            {scbLeadFinderEnabled.enabled ? (
+              <button
+                className="btn btn-outline"
+                type="button"
+                onClick={() => setIsDiscoveryOpen((current) => !current)}
+              >
+                {isDiscoveryOpen ? "Hide SCB tools" : "Show SCB tools"}
+              </button>
+            ) : null}
           </div>
 
-          {isDiscoveryOpen ? (
+          {scbLeadFinderEnabled.enabled && isDiscoveryOpen ? (
             <div className="mb-6">
               <ScbLeadFinderPanel
                 onDiscover={handleDiscover}
@@ -1622,6 +1635,7 @@ export function LeadsPage() {
                 onClose={() => setSelectedLeadId(null)}
                 onAudit={handleAudit}
                 onQualify={handleQualifyLead}
+                defaultLeadOwner={defaultLeadOwner}
               />
               ) : null}
             </div>
@@ -1658,7 +1672,7 @@ export function LeadsPage() {
         <AdminComingSoon
           title="Proposal tracking"
           description="Proposal workflow is not connected yet. Use Documents to generate and send client proposals."
-          action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/documents">Open documents</Link>}
+          action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/documents">Open documents</Link>}
         />
       ) : null}
     </AdminShell>
@@ -1693,7 +1707,7 @@ export function PipelinePage() {
         <AdminComingSoon
           title="No pipeline deals yet"
           description={leadResult.error ?? "Import or discover leads to populate the pipeline."}
-          action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/leads">Open leads</Link>}
+          action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/leads">Open leads</Link>}
         />
       ) : (
         <KanbanBoard
@@ -1725,7 +1739,7 @@ export function ProposalsPage() {
       <AdminComingSoon
         title="Proposal tracking"
         description="Proposal workflow is not connected yet. Use Documents to generate and send client proposals."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/documents">Open documents</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/documents">Open documents</Link>}
       />
     </AdminShell>
   );
@@ -1737,7 +1751,7 @@ export function FollowUpsPage() {
       <AdminComingSoon
         title="Follow-up queue"
         description="Follow-up reminders will appear here once lead next-action scheduling is connected."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/leads">Open leads</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/leads">Open leads</Link>}
       />
     </AdminShell>
   );
@@ -1749,7 +1763,7 @@ export function ProjectsPage() {
       <AdminComingSoon
         title="Project dashboard"
         description="Use the linked project detail pages for workflow management. A consolidated project metrics view is coming soon."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/projects/new">Create project</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/projects/new">Create project</Link>}
       />
     </AdminShell>
   );
@@ -1761,7 +1775,7 @@ export function TasksPage() {
       <AdminComingSoon
         title="Task board"
         description="Production task management is not connected yet. Track delivery work from individual project pages."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/projects">Open projects</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/projects">Open projects</Link>}
       />
     </AdminShell>
   );
@@ -1825,7 +1839,7 @@ export function ReportsPage() {
       <AdminComingSoon
         title="Website reports"
         description="Report history is not connected yet. Use Website Analyzer and lead audits for website scoring."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/analyzer">Open analyzer</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/analyzer">Open analyzer</Link>}
       />
     </AdminShell>
   );
@@ -1874,7 +1888,7 @@ export function InvoicesPage() {
       <AdminComingSoon
         title="Invoice tracking"
         description="Standalone invoice management is not connected yet. Use Finance for transaction-based bookkeeping."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/finance">Open finance</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/finance">Open finance</Link>}
       />
     </AdminShell>
   );
@@ -1886,7 +1900,7 @@ export function PaymentsPage() {
       <AdminComingSoon
         title="Payment activity"
         description="Payment tracking is not connected yet. Imported bank transactions are available in Finance."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/finance">Open finance</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/finance">Open finance</Link>}
       />
     </AdminShell>
   );
@@ -1898,7 +1912,7 @@ export function ExpensesPage() {
       <AdminComingSoon
         title="Expense tracker"
         description="Standalone expense pages are not connected yet. Use Finance → Owner expenses or Transactions."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/finance">Open finance</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/finance">Open finance</Link>}
       />
     </AdminShell>
   );
@@ -1974,7 +1988,7 @@ function FinanceQuickActionButtons({
         return (
           <button
             key={action.label}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:border-kw-brand hover:text-kw-brand"
             type="button"
             onClick={handleClick}
           >
@@ -2101,7 +2115,7 @@ function OverviewTab({
           return (
             <button
               key={metric.label}
-              className="group rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-[#2E75BD] hover:shadow-theme-xs md:p-6"
+              className="group rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-kw-brand hover:shadow-theme-xs md:p-6"
               type="button"
               onClick={() => metric.targetTab ? openTab(metric.targetTab) : undefined}
             >
@@ -2112,12 +2126,12 @@ function OverviewTab({
                 </div>
                 {Icon ? (
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition group-hover:bg-[#eff6ff]">
-                    <Icon className="size-5 text-gray-700 group-hover:text-[#2E75BD]" aria-hidden="true" />
+                    <Icon className="size-5 text-gray-700 group-hover:text-kw-brand" aria-hidden="true" />
                   </span>
                 ) : null}
               </div>
               <p className="mt-3 text-sm leading-6 text-gray-500">{metric.detail}</p>
-              <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]">
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-kw-brand">
                 View <ArrowRight className="size-4" aria-hidden="true" />
               </span>
             </button>
@@ -2125,7 +2139,7 @@ function OverviewTab({
         })}
 
         <button
-          className="group rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-[#2E75BD] hover:shadow-theme-xs md:p-6"
+          className="group rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-kw-brand hover:shadow-theme-xs md:p-6"
           type="button"
           onClick={() => openTab(taxPocket.targetTab)}
         >
@@ -2135,7 +2149,7 @@ function OverviewTab({
               <strong className="mt-2 block text-2xl font-bold text-gray-800">{taxPocket.current}</strong>
             </div>
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 transition group-hover:bg-[#eff6ff]">
-              <ReceiptText className="size-5 text-gray-700 group-hover:text-[#2E75BD]" aria-hidden="true" />
+              <ReceiptText className="size-5 text-gray-700 group-hover:text-kw-brand" aria-hidden="true" />
             </span>
           </div>
           <div className="mt-4 space-y-2">
@@ -2144,11 +2158,11 @@ function OverviewTab({
               <span>Target: {taxPocket.target}</span>
             </div>
             <div className="h-2 rounded-full bg-gray-100">
-              <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${taxPocket.progress}%` }} />
+              <div className="h-2 rounded-full bg-kw-brand" style={{ width: `${taxPocket.progress}%` }} />
             </div>
             <p className="text-sm leading-6 text-gray-500">Missing: {taxPocket.missing}</p>
           </div>
-          <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]">
+          <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-kw-brand">
             View <ArrowRight className="size-4" aria-hidden="true" />
           </span>
         </button>
@@ -2166,7 +2180,7 @@ function OverviewTab({
                 <p className="mt-2 text-sm leading-6 text-gray-500">{item.detail}</p>
               </div>
               <button
-                className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]"
+                className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-kw-brand"
                 type="button"
                 onClick={() => openTab(item.targetTab)}
               >
@@ -2185,7 +2199,7 @@ function OverviewTab({
               <span className="text-sm font-medium text-gray-500">{financeHealth.label}</span>
               <strong className="mt-2 block text-4xl font-bold text-gray-800">{financeHealth.score}</strong>
               <div className="mt-4 h-2 rounded-full bg-gray-100">
-                <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${financeHealth.progress}%` }} />
+                <div className="h-2 rounded-full bg-kw-brand" style={{ width: `${financeHealth.progress}%` }} />
               </div>
             </div>
             <div className="min-w-0 flex-1">
@@ -2218,7 +2232,7 @@ function OverviewTab({
               <span>Calculated from latest CSV import</span>
             </div>
             <div className="h-2 rounded-full bg-gray-100">
-              <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${categorizedProgress}%` }} />
+              <div className="h-2 rounded-full bg-kw-brand" style={{ width: `${categorizedProgress}%` }} />
             </div>
             <p className="mt-3 text-xs font-medium text-gray-500">
               {totalRows > 0 ? "Calculated from latest CSV import." : "Import a CSV to see categorization progress."}
@@ -2264,7 +2278,7 @@ function OverviewTab({
           <div className="space-y-3">
             {backendInsights.map((insight) => (
               <div key={insight} className="flex gap-3 rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-700">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#2E75BD]" aria-hidden="true" />
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-kw-brand" aria-hidden="true" />
                 <span>{insight}</span>
               </div>
             ))}
@@ -2279,7 +2293,7 @@ function OverviewTab({
             title="Invoice tracking not connected"
             description="Client invoice tracking is not available in KWStudio yet. Use the Invoices tab when the billing API is connected."
           />
-          <button className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => openTab("invoices")}>
+          <button className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-kw-brand" type="button" onClick={() => openTab("invoices")}>
             View invoices
             <ArrowRight className="size-4" aria-hidden="true" />
           </button>
@@ -2342,7 +2356,7 @@ function ImportTab({
       <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
         <FinancePanel title="CSV Import Wizard" description={emptyStateCopy.csv}>
           <label
-            className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[#2E75BD]/40 bg-[#eff6ff] p-6 text-center transition hover:border-[#2E75BD]"
+            className="flex min-h-64 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-kw-brand/40 bg-[#eff6ff] p-6 text-center transition hover:border-kw-brand"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
@@ -2353,7 +2367,7 @@ function ImportTab({
               onOpenFilePicker();
             }}
           >
-            <Upload className="size-10 text-[#2E75BD]" aria-hidden="true" />
+            <Upload className="size-10 text-kw-brand" aria-hidden="true" />
             <h3 className="mt-4 text-lg font-semibold text-gray-800">Drop Revolut CSV here</h3>
             <p className="mt-2 text-sm text-gray-500">Accepted format: .csv</p>
             <p className="mt-1 text-sm font-medium text-gray-700">Demo filename: revolut-pro-transactions-july.csv</p>
@@ -2383,7 +2397,7 @@ function ImportTab({
         <div className="grid gap-3 md:grid-cols-3">
           {importSteps.map((step, index) => (
             <div key={step} className="rounded-xl border border-gray-100 p-4">
-              <span className="flex size-8 items-center justify-center rounded-full bg-[#eff6ff] text-sm font-semibold text-[#2E75BD]">{index + 1}</span>
+              <span className="flex size-8 items-center justify-center rounded-full bg-[#eff6ff] text-sm font-semibold text-kw-brand">{index + 1}</span>
               <h3 className="mt-3 text-sm font-semibold text-gray-800">{step}</h3>
             </div>
           ))}
@@ -2449,7 +2463,7 @@ function TransactionsTab({
       key: "action",
       header: "Action",
       render: (transaction) => transaction.receiptStatus === "missing" ? (
-        <button className="text-sm font-semibold text-[#2E75BD]" type="button" onClick={onOpenReceipts}>
+        <button className="text-sm font-semibold text-kw-brand" type="button" onClick={onOpenReceipts}>
           Upload receipt
         </button>
       ) : "-",
@@ -2486,7 +2500,7 @@ function TransactionsTab({
           />
           <div className="mt-5 grid gap-2">
             {["Approve", "Change", "Mark private"].map((label) => (
-              <button key={label} className={label === "Approve" ? "btn btn-primary" : "btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"} type="button">
+              <button key={label} className={label === "Approve" ? "btn btn-primary" : "btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"} type="button">
                 {label}
               </button>
             ))}
@@ -2949,7 +2963,7 @@ function OwnerExpensesTab({
               Supplier
               <div className="relative">
                 <input
-                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                   placeholder="Search or create supplier…"
                   value={supplierInput}
                   autoComplete="off"
@@ -2979,7 +2993,7 @@ function OwnerExpensesTab({
                     {canCreateSupplier ? (
                       <button
                         type="button"
-                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-left text-sm font-semibold text-[#2E75BD] hover:bg-blue-50"
+                        className="flex w-full items-center gap-2 border-t border-gray-100 px-4 py-2.5 text-left text-sm font-semibold text-kw-brand hover:bg-blue-50"
                         onMouseDown={(e) => { e.preventDefault(); handleConfirmNewSupplier(); }}
                       >
                         <Plus className="size-3.5" aria-hidden="true" />
@@ -2999,7 +3013,7 @@ function OwnerExpensesTab({
             <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
               Receipt
               <select
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                 value={newDraft.receipt_id}
                 onChange={(event) => handleReceiptSelect(event.target.value)}
               >
@@ -3017,7 +3031,7 @@ function OwnerExpensesTab({
             <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
               Description
               <input
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                 placeholder="What was purchased?"
                 value={newDraft.description}
                 onChange={(event) => setNewDraft((prev) => ({ ...prev, description: event.target.value }))}
@@ -3027,7 +3041,7 @@ function OwnerExpensesTab({
             <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
               Expense date
               <input
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                 type="date"
                 value={newDraft.expense_date}
                 onChange={(event) => setNewDraft((prev) => ({ ...prev, expense_date: event.target.value }))}
@@ -3037,7 +3051,7 @@ function OwnerExpensesTab({
             <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
               Expense account
               <select
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                 value={newDraft.expense_account}
                 onChange={(event) => setNewDraft((prev) => ({ ...prev, expense_account: event.target.value }))}
               >
@@ -3052,7 +3066,7 @@ function OwnerExpensesTab({
               <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
                 Gross amount (incl. VAT)
                 <input
-                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                   placeholder="48.80"
                   type="number"
                   step="0.01"
@@ -3064,7 +3078,7 @@ function OwnerExpensesTab({
               <label className="flex flex-col gap-1 text-xs font-medium text-gray-500">
                 VAT amount
                 <input
-                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                   placeholder="9.76"
                   type="number"
                   step="0.01"
@@ -3102,7 +3116,7 @@ function OwnerExpensesTab({
           </div>
 
           <textarea
-            className="mt-4 min-h-20 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+            className="mt-4 min-h-20 w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
             placeholder="Internal notes (optional)"
             value={newDraft.notes}
             onChange={(event) => setNewDraft((prev) => ({ ...prev, notes: event.target.value }))}
@@ -3202,7 +3216,7 @@ function OwnerExpensesTab({
                 {detailReceiptPicking && selected.status === "draft" ? (
                   <div className="mt-3 flex flex-col gap-2">
                     <select
-                      className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                      className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                       value={detailReceiptPickId}
                       onChange={(e) => setDetailReceiptPickId(e.target.value)}
                     >
@@ -3319,7 +3333,7 @@ function OwnerExpensesTab({
                     </p>
                   ) : null}
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" type="button" disabled={isSavingDraft} onClick={() => void handleSaveDraft()}>
+                    <button className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand" type="button" disabled={isSavingDraft} onClick={() => void handleSaveDraft()}>
                       {isSavingDraft ? "Saving..." : "Save Draft"}
                     </button>
                     <button
@@ -3336,7 +3350,7 @@ function OwnerExpensesTab({
               ) : selected.status === "posted" || selected.status === "partially_reimbursed" ? (
                 <div className="space-y-2">
                   <input
-                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                     placeholder={`Reimbursement amount (max ${formatKr(selected.outstanding_amount)})`}
                     type="number"
                     step="0.01"
@@ -3455,11 +3469,11 @@ function ReceiptsTab({
       render: (receipt) => (
         <div className="flex flex-wrap gap-2">
           {receipt.match_status === "matched" ? (
-            <button className="text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => void handleUnmatch(receipt.id)}>
+            <button className="text-sm font-semibold text-kw-brand" type="button" onClick={() => void handleUnmatch(receipt.id)}>
               Unmatch
             </button>
           ) : (
-            <button className="text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => void handleRecalculate(receipt.id)}>
+            <button className="text-sm font-semibold text-kw-brand" type="button" onClick={() => void handleRecalculate(receipt.id)}>
               Recalculate
             </button>
           )}
@@ -3480,8 +3494,8 @@ function ReceiptsTab({
           }}
         >
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
-            <label className="flex min-h-44 flex-1 cursor-pointer flex-col items-center justify-center rounded-xl bg-white p-5 text-center transition hover:border-[#2E75BD]">
-              <ReceiptText className="size-10 text-[#2E75BD]" aria-hidden="true" />
+            <label className="flex min-h-44 flex-1 cursor-pointer flex-col items-center justify-center rounded-xl bg-white p-5 text-center transition hover:border-kw-brand">
+              <ReceiptText className="size-10 text-kw-brand" aria-hidden="true" />
               <h3 className="mt-4 text-lg font-semibold text-gray-800">{receiptFile ? receiptFile.name : "Upload PDF, JPG or PNG receipt"}</h3>
               <p className="mt-2 text-sm text-gray-500">Drop a file here or select one from disk.</p>
               <span className="btn btn-primary mt-5">{receiptFile ? "Change file" : "Select receipt"}</span>
@@ -3566,7 +3580,7 @@ function ReceiptsTab({
                   </div>
                   <strong className="text-sm text-gray-800">{candidate.score}</strong>
                 </div>
-                <button className="mt-4 text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => void handleMatch(selectedReceipt.id, candidate.transaction.id)}>
+                <button className="mt-4 text-sm font-semibold text-kw-brand" type="button" onClick={() => void handleMatch(selectedReceipt.id, candidate.transaction.id)}>
                   Match
                 </button>
               </div>
@@ -3580,7 +3594,7 @@ function ReceiptsTab({
               <div key={transaction.id} className="rounded-xl border border-gray-100 p-4">
                 <h3 className="text-sm font-semibold text-gray-800">{transaction.description}</h3>
                 <p className="mt-1 text-sm text-gray-500">{transaction.bookingDate} - {formatFinanceAmount(transaction.grossAmount, transaction.currency)}</p>
-                <button className="mt-4 text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => void handleMatch(selectedReceipt.id, transaction.id)}>
+                <button className="mt-4 text-sm font-semibold text-kw-brand" type="button" onClick={() => void handleMatch(selectedReceipt.id, transaction.id)}>
                   Match
                 </button>
               </div>
@@ -4815,14 +4829,14 @@ function ReportsTab() {
                 <h3 className="text-base font-semibold text-gray-800">SIE Export</h3>
                 <p className="mt-2 text-sm leading-6 text-gray-500">Exports posted verifications from the general ledger. Draft entries are not included.</p>
               </div>
-              <FileCheck2 className="size-6 shrink-0 text-[#2E75BD]" aria-hidden="true" />
+              <FileCheck2 className="size-6 shrink-0 text-kw-brand" aria-hidden="true" />
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-gray-700">
                 <span className="mb-2 block">From</span>
                 <input
-                  className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                   type="date"
                   value={from}
                   onChange={(event) => setFrom(event.target.value)}
@@ -4831,7 +4845,7 @@ function ReportsTab() {
               <label className="text-sm font-medium text-gray-700">
                 <span className="mb-2 block">To</span>
                 <input
-                  className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-800 outline-none transition focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/15"
+                  className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm text-gray-800 outline-none transition focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/15"
                   type="date"
                   value={to}
                   onChange={(event) => setTo(event.target.value)}
@@ -4843,7 +4857,7 @@ function ReportsTab() {
               <label className="flex items-center justify-between gap-4 rounded-lg border border-gray-100 px-3 py-2 text-sm font-medium text-gray-700">
                 <span>Include Opening Balances</span>
                 <input
-                  className="size-4 accent-[#2E75BD]"
+                  className="size-4 accent-kw-brand"
                   type="checkbox"
                   checked={includeOpeningBalances}
                   onChange={(event) => setIncludeOpeningBalances(event.target.checked)}
@@ -4852,7 +4866,7 @@ function ReportsTab() {
               <label className="flex items-center justify-between gap-4 rounded-lg border border-gray-100 px-3 py-2 text-sm font-medium text-gray-700">
                 <span>Include Closing Balances</span>
                 <input
-                  className="size-4 accent-[#2E75BD]"
+                  className="size-4 accent-kw-brand"
                   type="checkbox"
                   checked={includeClosingBalances}
                   onChange={(event) => setIncludeClosingBalances(event.target.checked)}
@@ -4924,11 +4938,11 @@ function ReportsTab() {
 
           return (
             <FinancePanel key={report.id} title={report.title}>
-              <Icon className="size-6 text-[#2E75BD]" aria-hidden="true" />
+              <Icon className="size-6 text-kw-brand" aria-hidden="true" />
               <p className="mt-3 text-sm leading-6 text-gray-500">{report.description}</p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <StatusBadge status={report.status} />
-                <button className="text-sm font-semibold text-[#2E75BD]" type="button">{report.action}</button>
+                <button className="text-sm font-semibold text-kw-brand" type="button">{report.action}</button>
               </div>
             </FinancePanel>
           );
@@ -4938,12 +4952,47 @@ function ReportsTab() {
   );
 }
 
+function formatSettingsValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
+}
+
 function SettingsTab() {
+  const company = useCompanyInfo();
+  const finance = useFinanceSettings();
+
+  if (company.isLoading || finance.isLoading) {
+    return <FinanceLoadingMessage message="Loading workspace settings…" />;
+  }
+
   const sections = [
-    { title: "Business profile", rows: financeSettings.businessProfile },
-    { title: "Import settings", rows: financeSettings.importSettings },
-    { title: "VAT settings", rows: financeSettings.vatSettings },
-    { title: "Tax reserve settings", rows: financeSettings.taxReserveSettings },
+    {
+      title: "Company identity",
+      hint: "Managed in Admin → Settings → Business",
+      rows: [
+        { label: "Company name", value: formatSettingsValue(company.data.companyName) },
+        { label: "Organization number", value: formatSettingsValue(company.data.organizationNumber) },
+        { label: "VAT number", value: formatSettingsValue(company.data.vatNumber) },
+        { label: "Address", value: formatSettingsValue(company.data.address) },
+        { label: "Phone", value: formatSettingsValue(company.data.phone) },
+        { label: "Website", value: formatSettingsValue(company.data.website) },
+        { label: "Contact email", value: formatSettingsValue(company.data.contactEmail) },
+      ],
+    },
+    {
+      title: "Finance defaults",
+      hint: "Managed in Admin → Settings → Finance",
+      rows: [
+        { label: "Fiscal year", value: formatSettingsValue(finance.data.fiscalYear) },
+        { label: "Currency", value: formatSettingsValue(finance.data.defaultCurrency) },
+        { label: "BAS account plan", value: formatSettingsValue(finance.data.basAccountPlan) },
+        { label: "Default payment account", value: formatSettingsValue(finance.data.defaultPaymentAccount) },
+        { label: "Reserve account", value: formatSettingsValue(finance.data.reserveAccount) },
+        { label: "Default VAT rate", value: `${finance.data.defaultVatRate}%` },
+        { label: "Payment terms", value: `${finance.data.paymentTermsDays} days` },
+        { label: "Invoice prefix", value: formatSettingsValue(finance.data.invoiceNumberPrefix) },
+      ],
+    },
   ];
 
   return (
@@ -4951,6 +5000,7 @@ function SettingsTab() {
       <div className="grid gap-6 xl:grid-cols-2">
         {sections.map((section) => (
           <FinancePanel key={section.title} title={section.title}>
+            <p className="mb-4 text-sm text-gray-500">{section.hint}</p>
             <FinanceDefinitionList rows={section.rows} />
           </FinancePanel>
         ))}
@@ -5201,7 +5251,7 @@ export function BookkeepingPage() {
       <AdminComingSoon
         title="Bookkeeping checklist"
         description="Monthly bookkeeping tasks are not connected yet. Use Finance for imports, journal posting, and VAT."
-        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/finance">Open finance</Link>}
+        action={<Link className="text-sm font-semibold text-kw-brand" to="/admin/finance">Open finance</Link>}
       />
     </AdminShell>
   );
@@ -5221,12 +5271,12 @@ export function AiToolsPage() {
       <div className="mb-6 grid gap-6 xl:grid-cols-3">
         <Panel title="Pinned tools">
           <div className="grid gap-3">
-            {pinnedTools.map((tool) => <Link key={tool.href} to={tool.href} className="rounded-lg border border-gray-100 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-[#2E75BD]">{tool.title}</Link>)}
+            {pinnedTools.map((tool) => <Link key={tool.href} to={tool.href} className="rounded-lg border border-gray-100 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-kw-brand">{tool.title}</Link>)}
           </div>
         </Panel>
         <Panel title="Recently used">
           <div className="grid gap-3">
-            {aiRecentTools.map((tool) => <Link key={tool.href} to={tool.href} className="rounded-lg border border-gray-100 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-[#2E75BD]"><span className="block">{tool.title}</span><span className="mt-1 block text-xs font-normal text-gray-500">{tool.meta}</span></Link>)}
+            {aiRecentTools.map((tool) => <Link key={tool.href} to={tool.href} className="rounded-lg border border-gray-100 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-kw-brand"><span className="block">{tool.title}</span><span className="mt-1 block text-xs font-normal text-gray-500">{tool.meta}</span></Link>)}
           </div>
         </Panel>
         <Panel title="Quick prompts">

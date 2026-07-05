@@ -23,7 +23,7 @@ export function LeadScoreBreakdown({ items }: LeadScoreBreakdownProps) {
               <span className="text-sm font-semibold text-gray-900">{item.value}/100</span>
             </div>
             <div className="h-2 rounded-full bg-gray-100">
-              <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${Math.min(Math.max(item.value, 0), 100)}%` }} />
+              <div className="h-2 rounded-full bg-kw-brand" style={{ width: `${Math.min(Math.max(item.value, 0), 100)}%` }} />
             </div>
             <p className="mt-2 text-sm leading-5 text-gray-500">{item.detail}</p>
           </div>

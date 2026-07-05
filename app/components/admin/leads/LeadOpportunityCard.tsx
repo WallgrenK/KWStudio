@@ -10,7 +10,7 @@ type LeadOpportunityCardProps = {
 function ProgressBar({ value }: { value: number }) {
   return (
     <div className="h-2 rounded-full bg-gray-100">
-      <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${Math.min(Math.max(value, 0), 100)}%` }} />
+      <div className="h-2 rounded-full bg-kw-brand" style={{ width: `${Math.min(Math.max(value, 0), 100)}%` }} />
     </div>
   );
 }
@@ -28,12 +28,12 @@ export function LeadOpportunityCard({
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Opportunity</p>
           <h3 className="mt-1 text-lg font-semibold text-gray-900">Score card</h3>
         </div>
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[#2E75BD]">{priority}</span>
+        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-kw-brand">{priority}</span>
       </div>
 
-      <div className="mb-5 flex gap-1 text-lg text-[#2E75BD]" aria-label={`${stars} of 5 opportunity stars`}>
+      <div className="mb-5 flex gap-1 text-lg text-kw-brand" aria-label={`${stars} of 5 opportunity stars`}>
         {[1, 2, 3, 4, 5].map((star) => (
-          <span key={star} className={star <= stars ? "text-[#2E75BD]" : "text-gray-200"}>{star <= stars ? "★" : "☆"}</span>
+          <span key={star} className={star <= stars ? "text-kw-brand" : "text-gray-200"}>{star <= stars ? "★" : "☆"}</span>
         ))}
       </div>
 

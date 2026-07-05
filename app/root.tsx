@@ -9,6 +9,8 @@ import {
 
 import type { Route } from "./+types/root";
 import { I18nProvider } from "~/i18n";
+import { AppSettingsProvider } from "~/settings/AppSettingsProvider";
+import { MaintenanceGate } from "~/components/maintenance-gate";
 import "~/styles/app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -52,7 +54,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <I18nProvider>
-      <Outlet />
+      <AppSettingsProvider>
+        <MaintenanceGate>
+          <Outlet />
+        </MaintenanceGate>
+      </AppSettingsProvider>
     </I18nProvider>
   );
 }

@@ -8,7 +8,7 @@ export default function AdminDocumentsNewPage() {
       title="New document"
       description="Create a document from a published template."
       action={(
-        <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" to="/admin/documents">
+        <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand" to="/admin/documents">
           Back to library
         </Link>
       )}

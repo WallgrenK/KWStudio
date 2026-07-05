@@ -14,6 +14,7 @@ import {
   isPortalApiConfigured,
   updateProjectStatus,
 } from "~/services/portalApi";
+import { useSettingsCategory } from "~/settings/useSettingsCategory";
 import type { PortalProjectDashboardDto } from "~/types/workflow";
 
 const PROJECT_STATUSES = [
@@ -30,6 +31,10 @@ type ProjectWorkflowPanelProps = {
 };
 
 export function ProjectWorkflowPanel({ projectId }: ProjectWorkflowPanelProps) {
+  const developerSettings = useSettingsCategory("developer");
+  const projectStatuses = developerSettings.data.projects.deliveryStages.length > 0
+    ? developerSettings.data.projects.deliveryStages
+    : [...PROJECT_STATUSES];
   const [dashboard, setDashboard] = useState<PortalProjectDashboardDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +139,7 @@ export function ProjectWorkflowPanel({ projectId }: ProjectWorkflowPanelProps) {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-gray-400">Current phase</p>
-                <p className="mt-1 text-sm font-medium text-[#2E75BD]">
+                <p className="mt-1 text-sm font-medium text-kw-brand">
                   {workflow.currentPhase?.title ?? "—"}
                 </p>
               </div>
@@ -155,7 +160,7 @@ export function ProjectWorkflowPanel({ projectId }: ProjectWorkflowPanelProps) {
                 onChange={(event) => void runAction("status", () => updateProjectStatus(projectId, event.target.value))}
                 disabled={busy === "status"}
               >
-                {PROJECT_STATUSES.map((status) => (
+                {projectStatuses.map((status) => (
                   <option key={status} value={status}>
                     {status.replace(/_/g, " ")}
                   </option>
@@ -178,7 +183,7 @@ export function ProjectWorkflowPanel({ projectId }: ProjectWorkflowPanelProps) {
               {workflow.phases.map((phase) => (
                 <li
                   key={phase.id}
-                  className={`rounded-xl border px-4 py-3 ${phase.status === "current" ? "border-[#2E75BD] bg-[#eff6ff]" : "border-gray-100"}`}
+                  className={`rounded-xl border px-4 py-3 ${phase.status === "current" ? "border-kw-brand bg-[#eff6ff]" : "border-gray-100"}`}
                 >
                   <p className="text-sm font-semibold text-gray-900">{phase.title}</p>
                   <p className="mt-1 text-xs capitalize text-gray-500">{phase.status}</p>
@@ -222,7 +227,7 @@ export function ProjectWorkflowPanel({ projectId }: ProjectWorkflowPanelProps) {
                 </div>
                 {milestone.status !== "completed" ? (
                   <button
-                    className="text-sm font-medium text-[#2E75BD]"
+                    className="text-sm font-medium text-kw-brand"
                     type="button"
                     disabled={busy === `ms-${milestone.id}`}
                     onClick={() => void runAction(`ms-${milestone.id}`, () => completeProjectMilestone(projectId, milestone.id))}
@@ -301,7 +306,7 @@ export function ProjectWorkflowPanel({ projectId }: ProjectWorkflowPanelProps) {
                 </div>
                 {action.status !== "completed" ? (
                   <button
-                    className="text-sm font-medium text-[#2E75BD] disabled:opacity-50"
+                    className="text-sm font-medium text-kw-brand disabled:opacity-50"
                     type="button"
                     disabled={busy === `act-${action.id}` || action.isLocked}
                     onClick={() => void runAction(`act-${action.id}`, () => completeProjectClientActionAdmin(projectId, action.id))}
@@ -334,7 +339,7 @@ export function ProjectWorkflowPanel({ projectId }: ProjectWorkflowPanelProps) {
         )}
       </FormCard>
 
-      <Link className="text-sm font-medium text-[#2E75BD]" to="/admin/projects">
+      <Link className="text-sm font-medium text-kw-brand" to="/admin/projects">
         Back to projects
       </Link>
     </div>

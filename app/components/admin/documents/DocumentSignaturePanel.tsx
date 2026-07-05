@@ -6,6 +6,8 @@ import {
 } from "~/services/documentsApi";
 import type { DocumentSignatureDetailDto } from "~/types/documents";
 import { DocumentHandwrittenSignaturePanel } from "~/components/admin/documents/DocumentHandwrittenSignaturePanel";
+import { useSettingsCategory } from "~/settings/useSettingsCategory";
+import { defaultSignatureExpiryInput } from "~/settings/portalHelpers";
 
 type DocumentSignaturePanelProps = {
   documentId: string;
@@ -35,6 +37,7 @@ export function DocumentSignaturePanel({
   defaultParticipant,
   onChanged,
 }: DocumentSignaturePanelProps) {
+  const developerSettings = useSettingsCategory("developer");
   const [detail, setDetail] = useState<DocumentSignatureDetailDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,11 +45,18 @@ export function DocumentSignaturePanel({
   const [participantName, setParticipantName] = useState(defaultParticipant?.name ?? "");
   const [participantEmail, setParticipantEmail] = useState(defaultParticipant?.email ?? "");
   const [expiresAt, setExpiresAt] = useState("");
+  const [expiryInitialized, setExpiryInitialized] = useState(false);
 
   useEffect(() => {
     setParticipantName(defaultParticipant?.name ?? "");
     setParticipantEmail(defaultParticipant?.email ?? "");
   }, [defaultParticipant?.email, defaultParticipant?.name]);
+
+  useEffect(() => {
+    if (expiryInitialized || developerSettings.isLoading) return;
+    setExpiresAt(defaultSignatureExpiryInput(developerSettings.data.documents.defaultSignatureExpiryDays));
+    setExpiryInitialized(true);
+  }, [developerSettings.data.documents.defaultSignatureExpiryDays, developerSettings.isLoading, expiryInitialized]);
 
   async function reload() {
     setLoading(true);
@@ -220,7 +230,7 @@ export function DocumentSignaturePanel({
           </div>
           <button
             type="button"
-            className="btn btn-primary inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+            className="btn btn-primary inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
             disabled={loading || !participantName.trim() || !participantEmail.trim()}
             onClick={() => void handleCreate()}
           >

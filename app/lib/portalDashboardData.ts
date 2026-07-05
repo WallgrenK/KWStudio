@@ -77,7 +77,10 @@ export function getChecklistMeta(actions: WorkflowClientActionDto[]): PortalChec
   return { state: "has_pending", pendingCount: pending.length, totalCount: active.length };
 }
 
-export function mapDashboardApiToViewModel(dashboard: PortalProjectDashboardDto): {
+export function mapDashboardApiToViewModel(
+  dashboard: PortalProjectDashboardDto,
+  options?: { companyName?: string },
+): {
   data: PortalDashboardData;
   checklistMeta: PortalChecklistMeta;
   hasLiveProject: boolean;
@@ -91,7 +94,7 @@ export function mapDashboardApiToViewModel(dashboard: PortalProjectDashboardDto)
         id: project.id,
         name: project.title,
         status: project.status.replace(/_/g, " "),
-        owner: "KWStudio team",
+        owner: options?.companyName ? `${options.companyName} team` : "Project team",
         estimatedLaunch: project.due_date
           ? new Date(project.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
           : "To be confirmed",

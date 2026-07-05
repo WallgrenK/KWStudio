@@ -41,7 +41,7 @@ export function DocumentEditorRightSidebar() {
             key={tab.id}
             type="button"
             className={`flex-1 px-3 py-3 text-sm font-medium ${
-              rightTab === tab.id ? "border-b-2 border-[#2E75BD] text-[#2E75BD]" : "text-gray-500"
+              rightTab === tab.id ? "border-b-2 border-kw-brand text-kw-brand" : "text-gray-500"
             }`}
             onClick={() => setRightTab(tab.id)}
           >
@@ -86,7 +86,7 @@ export function DocumentEditorRightSidebar() {
           <div className="space-y-4">
             <button
               type="button"
-              className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+              className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
               disabled={Boolean(actionLoading) || previewLoading}
               onClick={() => void refreshPreview()}
             >

@@ -21,7 +21,7 @@ export function SettingsSidebar({ categories, activeCategoryId, onSelect }: Sett
             onClick={() => onSelect(category.id)}
             className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
               isActive
-                ? "bg-[#eff6ff] text-[#2E75BD]"
+                ? "bg-[#eff6ff] text-kw-brand"
                 : "text-gray-700 hover:bg-gray-50"
             }`}
           >

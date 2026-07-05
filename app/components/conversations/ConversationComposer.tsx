@@ -34,7 +34,7 @@ export function ConversationComposer({ disabled, busy, onSend }: ConversationCom
           rows={3}
           placeholder="Write a message…"
           disabled={disabled || busy}
-          className="min-h-[80px] flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-[#2E75BD] focus:outline-none focus:ring-1 focus:ring-[#2E75BD] disabled:bg-gray-50"
+          className="min-h-[80px] flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-kw-brand focus:outline-none focus:ring-1 focus:ring-kw-brand disabled:bg-gray-50"
         />
         <button
           type="submit"

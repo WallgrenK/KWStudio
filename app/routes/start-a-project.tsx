@@ -7,7 +7,10 @@ import { Navigation } from "~/components/navigation";
 import { SectionHeader } from "~/components/sectionheader";
 import { getContactFaqs } from "~/data/faqs";
 import { useI18n } from "~/i18n";
-import { breadcrumbSchema, buildMeta, faqPageSchema, webPageSchema } from "~/lib/seo";
+import { breadcrumbSchema, buildMeta, faqPageSchema, interpolateCompanyName, webPageSchema } from "~/lib/seo";
+import { interpolateBusinessIdentity } from "~/settings/interpolateBusinessIdentity";
+import { getPortalBrandInitials } from "~/settings/portalHelpers";
+import { usePublicWebsiteSettings } from "~/settings/usePublicWebsiteSettings";
 import { notifyEnquiryEmail } from "~/utils/enquiry-email";
 import { supabase } from "~/utils/supabase";
 
@@ -27,6 +30,14 @@ export function meta() {
 
 export default function StartAProjectPage() {
     const { t, dictionary } = useI18n();
+    const website = usePublicWebsiteSettings();
+    const companyName = website.companyName;
+    const contactEmail = website.contactEmail;
+    const identity = { companyName, contactEmail };
+    const localize = (text: string) => interpolateBusinessIdentity(text, identity);
+    const brandInitials = getPortalBrandInitials(companyName);
+    const pageTitleResolved = interpolateCompanyName(pageTitle, companyName);
+    const pageDescriptionResolved = interpolateCompanyName(pageDescription, companyName);
     const budgetOptions = dictionary.startProject.budgetOptions as string[];
     const nextSteps = dictionary.startProject.nextSteps.items as string[];
     const contactFaqs = getContactFaqs(dictionary);
@@ -47,15 +58,15 @@ export default function StartAProjectPage() {
             email: String(formData.get("email") ?? "").trim(),
             budget: String(formData.get("budget") ?? "").trim() || null,
             message: String(formData.get("details") ?? "").trim(),
-            recipient: "hello@kwstudio.se",
-            subject: "KWStudio Project Inquiry",
+            recipient: contactEmail,
+            subject: `${companyName} Project Inquiry`,
         };
 
         const { error } = await supabase.from("enquiries").insert(enquiry);
 
         if (error) {
             console.error("Could not save project enquiry.", error);
-            setSubmitError(t("startProject.error"));
+            setSubmitError(localize(t("startProject.error")));
             setIsSubmitting(false);
             return;
         }
@@ -67,6 +78,9 @@ export default function StartAProjectPage() {
             budget: enquiry.budget,
             message: enquiry.message,
             source: "start-a-project",
+            recipient: contactEmail,
+            subject: enquiry.subject,
+            companyName,
         });
         setSubmitted(true);
         setIsSubmitting(false);
@@ -76,7 +90,7 @@ export default function StartAProjectPage() {
         <>
             <JsonLd
                 data={[
-                    webPageSchema({ path: "/start-a-project", title: pageTitle, description: pageDescription }),
+                    webPageSchema({ path: "/start-a-project", title: pageTitleResolved, description: pageDescriptionResolved }),
                     breadcrumbSchema([
                         { name: t("nav.home"), path: "/" },
                         { name: t("nav.startProject"), path: "/start-a-project" },
@@ -139,8 +153,8 @@ export default function StartAProjectPage() {
                             {submitted ? (
                                 <div className="contact-success" role="status" aria-live="polite">
                                     <h2>{t("startProject.successTitle")}</h2>
-                                    <p>{t("startProject.successText")}</p>
-                                    <span>{t("startProject.successNote")}</span>
+                                    <p>{localize(t("startProject.successText"))}</p>
+                                    <span>{localize(t("startProject.successNote"))}</span>
                                     <div>
                                         <a href="/work">{t("common.viewWork")}</a>
                                         <a href="/process">{t("common.seeProcess")}</a>
@@ -171,7 +185,7 @@ export default function StartAProjectPage() {
                                     </button>
                                     <div className="contact-email-option">
                                         <p>{t("common.preferEmail")}</p>
-                                        <a href="mailto:hello@kwstudio.se?subject=KWStudio%20Project%20Inquiry">hello@kwstudio.se</a>
+                                        <a href={`mailto:${contactEmail}?subject=${encodeURIComponent(`${companyName} Project Inquiry`)}`}>{contactEmail}</a>
                                     </div>
                                 </>
                             )}

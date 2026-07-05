@@ -467,13 +467,6 @@ export const emailMessages: EmailMessage[] = [
   { id: "mail-003", sender: "Oskar Berg", company: "Northbound", subject: "Proposal feedback", snippet: "The timeline looks good. Can we adjust phase two?", date: "Jun 25", status: "Pending" },
 ];
 
-export const settingsProfile = {
-  studioName: "KWStudio",
-  email: "hello@kwstudio.se",
-  location: "Stockholm, Sweden",
-  timezone: "Europe/Stockholm",
-  brandColor: "#2E75BD",
-};
 
 export const recentActivity: SimpleActivity[] = [
   { id: "activity-001", title: "New lead received", detail: "Maja Lind requested a website redesign.", meta: "5 min ago", status: "New" },

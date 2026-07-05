@@ -51,7 +51,7 @@ export function DocumentEditorToolbar() {
 
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+            className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
             to={`/admin/documents/${editorState.document.id}`}
           >
             Back to detail
@@ -60,7 +60,7 @@ export function DocumentEditorToolbar() {
             <>
               <button
                 type="button"
-                className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+                className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
                 disabled={Boolean(actionLoading) || !dirtyState.isDirty}
                 onClick={() => void discardChanges()}
               >
@@ -68,7 +68,7 @@ export function DocumentEditorToolbar() {
               </button>
               <button
                 type="button"
-                className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+                className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
                 disabled={Boolean(actionLoading)}
                 onClick={() => void validateServer()}
               >

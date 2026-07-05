@@ -75,7 +75,7 @@ export function RichTextEditor({
               key={item.title}
               type="button"
               title={item.title}
-              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 hover:border-[#2E75BD] hover:text-[#2E75BD]"
+              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 hover:border-kw-brand hover:text-kw-brand"
               onMouseDown={(event) => event.preventDefault()}
               onClick={item.action}
             >
@@ -90,7 +90,7 @@ export function RichTextEditor({
         rows={rows}
         readOnly={readOnly}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-[#2E75BD] focus:ring-2 focus:ring-[#2E75BD]/20"
+        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-kw-brand focus:ring-2 focus:ring-kw-brand/20"
         onChange={(event) => onChange(event.target.value)}
         onFocus={() => onFocusField?.(insertAtCursor)}
         onBlur={() => onBlurField?.()}

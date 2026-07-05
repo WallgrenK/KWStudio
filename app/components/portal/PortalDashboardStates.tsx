@@ -6,7 +6,7 @@ export function PortalLoadingState({ message = "Loading your portal…" }: { mes
   return (
     <PortalCard padding="lg">
       <div className="flex items-center gap-3">
-        <span className="inline-flex size-5 animate-pulse rounded-full bg-[#2E75BD]/20" aria-hidden="true" />
+        <span className="inline-flex size-5 animate-pulse rounded-full bg-kw-brand/20" aria-hidden="true" />
         <p className="text-sm text-gray-600">{message}</p>
       </div>
     </PortalCard>
@@ -54,7 +54,7 @@ export function PortalNoProjectState({ firstName }: { firstName: string }) {
   return (
     <PortalCard padding="lg" className="bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)]">
       <div className="mx-auto max-w-2xl text-center">
-        <p className="text-sm font-medium text-[#2E75BD]">Welcome back, {firstName}</p>
+        <p className="text-sm font-medium text-kw-brand">Welcome back, {firstName}</p>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
           KWStudio is preparing your project space
         </h1>

@@ -22,7 +22,7 @@ export function PortalActivity({ items }: PortalActivityProps) {
             {index < items.length - 1 ? (
               <span className="absolute left-[7px] top-4 h-[calc(100%-0.5rem)] w-px bg-gray-200" aria-hidden="true" />
             ) : null}
-            <span className="relative mt-1.5 size-3.5 shrink-0 rounded-full border-2 border-[#2E75BD] bg-white" />
+            <span className="relative mt-1.5 size-3.5 shrink-0 rounded-full border-2 border-kw-brand bg-white" />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium uppercase tracking-[0.08em] text-gray-400">{item.timeLabel}</p>
               <p className="mt-1 text-sm font-semibold text-gray-900">{item.title}</p>

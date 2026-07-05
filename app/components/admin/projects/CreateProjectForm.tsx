@@ -9,6 +9,7 @@ import {
   listPortalClients,
   listPortalServices,
 } from "~/services/portalApi";
+import { useSettingsCategory } from "~/settings/useSettingsCategory";
 import type { PortalClientDto } from "~/types/portal";
 import type { PortalServiceDto } from "~/types/workflow";
 
@@ -23,6 +24,7 @@ type CreateProjectFormProps = {
 
 export function CreateProjectForm({ initialClientId }: CreateProjectFormProps) {
   const navigate = useNavigate();
+  const developerSettings = useSettingsCategory("developer");
   const [searchParams] = useSearchParams();
   const clientIdFromUrl = searchParams.get("clientId") ?? undefined;
   const [clients, setClients] = useState<PortalClientDto[]>([]);
@@ -135,6 +137,9 @@ export function CreateProjectForm({ initialClientId }: CreateProjectFormProps) {
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(startDate ? { startDate } : {}),
       ...(dueDate ? { dueDate } : {}),
+      ...(developerSettings.data.projects.defaultProjectStatus
+        ? { status: developerSettings.data.projects.defaultProjectStatus }
+        : {}),
     });
 
     if (result.ok && result.data?.project?.id) {
@@ -274,7 +279,7 @@ export function CreateProjectForm({ initialClientId }: CreateProjectFormProps) {
           <button className="btn btn-primary" type="submit" disabled={submitting}>
             {submitting ? "Creating project…" : "Create project"}
           </button>
-          <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" to="/admin/projects">
+          <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand" to="/admin/projects">
             Cancel
           </Link>
         </div>

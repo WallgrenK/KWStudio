@@ -64,7 +64,7 @@ export function DocumentVersionPanel({
           {isMutable ? (
             <button
               type="button"
-              className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+              className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
               disabled={Boolean(actionLoading)}
               onClick={onCreateNewVersion}
             >
@@ -73,7 +73,7 @@ export function DocumentVersionPanel({
           ) : null}
           <button
             type="button"
-            className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+            className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
             disabled={Boolean(actionLoading)}
             onClick={onDuplicate}
           >
@@ -82,7 +82,7 @@ export function DocumentVersionPanel({
           {documentStatus !== "archived" ? (
             <button
               type="button"
-              className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+              className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
               disabled={Boolean(actionLoading)}
               onClick={onArchive}
             >
@@ -92,7 +92,7 @@ export function DocumentVersionPanel({
           {documentStatus !== "cancelled" ? (
             <button
               type="button"
-              className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+              className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
               disabled={Boolean(actionLoading)}
               onClick={onCancel}
             >
@@ -101,7 +101,7 @@ export function DocumentVersionPanel({
           ) : null}
           <button
             type="button"
-            className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]"
+            className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand"
             disabled={Boolean(actionLoading) || !selectedVersionId}
             onClick={onRefreshPreview}
           >
@@ -139,7 +139,7 @@ export function DocumentVersionPanel({
                     <td className="px-3 py-3 font-medium text-gray-800">
                       v{version.version_number}
                       {isActive ? (
-                        <span className="ml-2 rounded-full bg-[#2E75BD] px-2 py-0.5 text-xs font-semibold text-white">
+                        <span className="ml-2 rounded-full bg-kw-brand px-2 py-0.5 text-xs font-semibold text-white">
                           Active
                         </span>
                       ) : null}

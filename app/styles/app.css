@@ -3,10 +3,12 @@
 @theme {
   --font-sans: "Inclusive Sans", ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --color-kw-brand: var(--kw-brand);
 }
 
 :root {
-  --blue: #2e75bd;
+  --kw-brand: #2E75BD;
+  --blue: var(--kw-brand);
   --blue-dark: #0f4f91;
   --ink: #07111f;
   --text: #1d2733;
@@ -9019,7 +9021,7 @@ img {
 /* KWStudio admin - scoped TailAdmin port */
 
 .kw-admin-root {
-  --kw-admin-brand: #2e75bd;
+  --kw-admin-brand: var(--kw-brand);
   --kw-admin-brand-50: #eff6ff;
   --kw-admin-brand-100: #dbeafe;
   --kw-admin-success-50: #ecfdf3;
@@ -10153,7 +10155,7 @@ img {
 
 .kw-admin-root .menu-item-active {
   background: #eff6ff;
-  color: #2e75bd;
+  color: var(--kw-brand);
 }
 
 .kw-admin-root .menu-item-inactive {
@@ -10171,7 +10173,7 @@ img {
 }
 
 .kw-admin-root .menu-item-icon-active {
-  color: #2e75bd;
+  color: var(--kw-brand);
 }
 
 .kw-admin-root .menu-item-icon-inactive {

@@ -79,7 +79,7 @@ function AdminShellContent({
       <div className="kw-admin-root">
         <div className="admin-auth-page">
           <div className="mx-auto max-w-lg rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#2E75BD]">Admin access required</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-kw-brand">Admin access required</p>
             <h1 className="mt-3 text-xl font-semibold text-gray-900">This area is restricted to KWStudio admins.</h1>
             <p className="mt-3 text-sm leading-6 text-gray-600">
               {userProfile.error ?? "Sign in with an admin account or bootstrap the first admin profile for a new workspace."}

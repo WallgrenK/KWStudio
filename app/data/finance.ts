@@ -171,7 +171,7 @@ export const importStatus = [
 export const cashFlow = [
   { label: "Money in", value: "64,000 SEK", detail: "Client payments and project revenue", percent: 100, color: "bg-emerald-500" },
   { label: "Money out", value: "25,800 SEK", detail: "Tools, hosting and operating costs", percent: 40, color: "bg-amber-500" },
-  { label: "Net result", value: "38,200 SEK", detail: "Demo result before tax reserve", percent: 60, color: "bg-[#2E75BD]" },
+  { label: "Net result", value: "38,200 SEK", detail: "Demo result before tax reserve", percent: 60, color: "bg-kw-brand" },
 ];
 
 export const taxPocket = {
@@ -514,29 +514,6 @@ export const reportStatus = {
   currentPeriod: "June 2026",
   reportsReady: "4 / 7",
   missingData: "2 receipts, 3 transactions need review",
-};
-
-export const financeSettings = {
-  businessProfile: [
-    { label: "Company name", value: "KWStudio" },
-    { label: "Business type", value: "Enskild firma" },
-    { label: "Currency", value: "SEK" },
-    { label: "VAT registered", value: "Yes" },
-    { label: "Accounting method", value: "Cash method demo" },
-  ],
-  importSettings: [
-    { label: "Default source", value: "Revolut Pro CSV" },
-    { label: "Duplicate detection", value: "Enabled" },
-    { label: "Auto-categorization", value: "Enabled" },
-  ],
-  vatSettings: [
-    { label: "Default VAT rate", value: "25%" },
-    { label: "VAT period", value: "Monthly demo" },
-  ],
-  taxReserveSettings: [
-    { label: "Suggested reserve percentage", value: "35%" },
-    { label: "Tax pocket name", value: "Moms / Skatt" },
-  ],
 };
 
 export const categoryRules = [

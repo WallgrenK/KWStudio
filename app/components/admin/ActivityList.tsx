@@ -13,7 +13,7 @@ export function ActivityList({ items }: { items: ActivityItem[] }) {
       <div className="mt-5 space-y-5">
         {items.map((item) => (
           <div key={item.id} className="flex gap-3">
-            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#2E75BD]" />
+            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-kw-brand" />
             <div>
               <h3 className="text-sm font-semibold text-gray-800">{item.title}</h3>
               <p className="mt-1 text-sm leading-6 text-gray-500">{item.detail}</p>

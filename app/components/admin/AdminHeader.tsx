@@ -73,7 +73,7 @@ export function AdminHeader({ displayName, email, onSignOut }: AdminHeaderProps)
           </button>
 
           <Link to="/admin" className="lg:hidden">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#2E75BD] text-sm font-bold text-white">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-kw-brand text-sm font-bold text-white">
               KW
             </span>
           </Link>
@@ -96,7 +96,7 @@ export function AdminHeader({ displayName, email, onSignOut }: AdminHeaderProps)
                   ref={inputRef}
                   type="text"
                   placeholder="Search or type command..."
-                  className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pr-14 pl-12 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10 focus:outline-hidden xl:w-[430px]"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pr-14 pl-12 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-kw-brand focus:ring-3 focus:ring-kw-brand/10 focus:outline-hidden xl:w-[430px]"
                 />
 
                 <button

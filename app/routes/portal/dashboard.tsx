@@ -19,6 +19,8 @@ import { PortalQuickAccess } from "~/components/portal/PortalQuickAccess";
 import { PortalSection } from "~/components/portal/PortalSection";
 import { PortalTimeline } from "~/components/portal/PortalTimeline";
 import { PORTAL_QUICK_ACCESS, type PortalProjectSummary } from "~/data/portalDashboard";
+import { buildFallbackPortalContact, filterPortalQuickAccess } from "~/settings/portalHelpers";
+import { usePublicPortalSettings } from "~/settings/usePublicPortalSettings";
 import { usePortalAuth } from "~/hooks/usePortalAuth";
 import { useUserProfile } from "~/hooks/useUserProfile";
 import {
@@ -46,6 +48,14 @@ function mapProjectsToSummaries(projects: PortalProjectDto[]): PortalProjectSumm
 export default function PortalDashboardPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const portalSettings = usePublicPortalSettings();
+  const companyName = portalSettings.companyName;
+  const quickAccessItems = useMemo(
+    () => filterPortalQuickAccess(PORTAL_QUICK_ACCESS, portalSettings.allowedPortalFeatures),
+    [portalSettings.allowedPortalFeatures],
+  );
+  const contactSectionTitle = `Your contact at ${companyName}`;
+  const activitySectionDescription = `Recent updates from ${companyName}`;
   const { session, loading, me, error, signOut } = usePortalAuth();
   const userProfile = useUserProfile(Boolean(session) && isPortalApiConfigured);
   const [projects, setProjects] = useState<PortalProjectDto[]>([]);
@@ -138,13 +148,13 @@ export default function PortalDashboardPage() {
 
   const projectSummaries = useMemo(() => mapProjectsToSummaries(projects), [projects]);
   const viewModel = useMemo(
-    () => (dashboard ? mapDashboardApiToViewModel(dashboard) : null),
-    [dashboard],
+    () => (dashboard ? mapDashboardApiToViewModel(dashboard, { companyName }) : null),
+    [companyName, dashboard],
   );
 
   const signOutButton = (
     <button
-      className="shrink-0 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-200 hover:border-gray-300 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+      className="shrink-0 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-200 hover:border-gray-300 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
       type="button"
       onClick={() => void signOut()}
     >
@@ -194,7 +204,7 @@ export default function PortalDashboardPage() {
 
   if (!session) {
     return (
-      <PortalDashboardLayout companyName="KWStudio">
+      <PortalDashboardLayout companyName={companyName}>
         <PortalAccessDeniedState description="Sign in to access your client portal dashboard." />
       </PortalDashboardLayout>
     );
@@ -202,7 +212,7 @@ export default function PortalDashboardPage() {
 
   if (isAdmin) {
     return (
-      <PortalDashboardLayout companyName="KWStudio" action={signOutButton}>
+      <PortalDashboardLayout companyName={companyName} action={signOutButton}>
         <PortalErrorState
           title="Admin accounts use the admin area"
           description="This dashboard is for client accounts. You are being redirected to the admin panel."
@@ -218,7 +228,7 @@ export default function PortalDashboardPage() {
 
   if (error || !me) {
     return (
-      <PortalDashboardLayout companyName="KWStudio" action={signOutButton}>
+      <PortalDashboardLayout companyName={companyName} action={signOutButton}>
         <PortalErrorState
           title="Portal access required"
           description={error ?? "Your account is not linked to a client portal profile."}
@@ -261,10 +271,10 @@ export default function PortalDashboardPage() {
               <PortalNoProjectState firstName={firstName} />
               <div className="grid gap-6 md:gap-8 xl:grid-cols-[1.4fr_0.9fr]">
                 <PortalSection title="Quick access" description="Shortcuts to portal resources.">
-                  <PortalQuickAccess items={PORTAL_QUICK_ACCESS} />
+                  <PortalQuickAccess items={quickAccessItems} />
                 </PortalSection>
-                <PortalSection title="Your contact at KWStudio">
-                  <PortalContactCard contact={dashboardData?.contact ?? null} />
+                <PortalSection title={contactSectionTitle}>
+                  <PortalContactCard contact={dashboardData?.contact ?? buildFallbackPortalContact(portalSettings.data)} />
                 </PortalSection>
               </div>
             </>
@@ -309,12 +319,12 @@ export default function PortalDashboardPage() {
                       />
                     </PortalSection>
 
-                    <PortalSection title="Latest activity" description="Recent updates from KWStudio.">
+                    <PortalSection title="Latest activity" description={activitySectionDescription}>
                       <PortalActivity items={dashboardData.activity} />
                     </PortalSection>
 
                     <PortalSection title="Quick access" description="Shortcuts to project resources.">
-                      <PortalQuickAccess items={PORTAL_QUICK_ACCESS} />
+                      <PortalQuickAccess items={quickAccessItems} />
                     </PortalSection>
                   </div>
 
@@ -323,8 +333,8 @@ export default function PortalDashboardPage() {
                       <PortalProjectInfoCard project={dashboardData.project} />
                     </PortalSection>
 
-                    <PortalSection title="Your contact at KWStudio">
-                      <PortalContactCard contact={dashboardData.contact} />
+                    <PortalSection title={contactSectionTitle}>
+                      <PortalContactCard contact={dashboardData.contact ?? buildFallbackPortalContact(portalSettings.data)} />
                     </PortalSection>
                   </aside>
                 </div>

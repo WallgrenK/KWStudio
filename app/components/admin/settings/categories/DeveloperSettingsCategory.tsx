@@ -1,85 +1,101 @@
-import { useCallback } from "react";
-import { useSettingsContext } from "../SettingsContext";
+import {
+  FinanceErrorBanner,
+  FinanceLoadingMessage,
+} from "~/components/admin/finance/FinanceFeedback";
 import { SettingsFieldRow, SettingsFieldStack, SettingsGroup, settingsInputClassName } from "../SettingsGroup";
-import { SettingsComingSoonBadge } from "../SettingsStatusBadge";
 import { SettingsSection } from "../SettingsSection";
-import { useSettingsCategoryRegistration, useSettingsForm } from "../useSettingsForm";
-
-type DeveloperFormState = {
-  version: string;
-  environment: string;
-  database: string;
-  migrations: string;
-  diagnostics: string;
-  logs: string;
-  featureFlags: string;
-  exportDiagnostics: string;
-};
-
-const INITIAL: DeveloperFormState = {
-  version: "KWStudio admin (local demo)",
-  environment: "Development",
-  database: "Supabase PostgreSQL",
-  migrations: "Managed via supabase/migrations",
-  diagnostics: "Not available",
-  logs: "Not available",
-  featureFlags: "Not available",
-  exportDiagnostics: "Not available",
-};
+import {
+  developerToFormState,
+  developerToPatch,
+  EMPTY_DEVELOPER_FORM,
+} from "../settingsCategoryForms";
+import { usePersistedSettingsCategory } from "../usePersistedSettingsCategory";
 
 export function DeveloperSettingsCategory() {
-  const { registerHandlers, unregisterHandlers } = useSettingsContext();
-  const { values, isDirty, reset, markSaved } = useSettingsForm(INITIAL);
-
-  const save = useCallback(() => {
-    markSaved();
-  }, [markSaved]);
-
-  useSettingsCategoryRegistration("developer", isDirty, save, reset, registerHandlers, unregisterHandlers);
+  const { values, setField, isLoading, loadError, saveError } = usePersistedSettingsCategory({
+    categoryId: "developer",
+    emptyForm: EMPTY_DEVELOPER_FORM,
+    toFormState: developerToFormState,
+    toPatch: developerToPatch,
+  });
 
   return (
     <SettingsSection
       title="Developer"
-      description="Environment, database, diagnostics, and feature flag visibility."
+      description="Feature flags and domain defaults for CRM, projects, and documents."
     >
-      <SettingsFieldStack>
-        <SettingsFieldRow>
-          <SettingsGroup label="Version" htmlFor="developer-version">
-            <input id="developer-version" className={settingsInputClassName(true)} value={values.version} disabled />
+      {isLoading ? (
+        <FinanceLoadingMessage message="Loading developer settings…" />
+      ) : loadError ? (
+        <FinanceErrorBanner message={loadError} />
+      ) : (
+        <SettingsFieldStack>
+          <SettingsGroup label="Feature flags (JSON)" htmlFor="developer-feature-flags">
+            <textarea
+              id="developer-feature-flags"
+              className={`${settingsInputClassName()} min-h-28 py-3 font-mono text-xs`}
+              value={values.featureFlagsJson}
+              onChange={(event) => setField("featureFlagsJson", event.target.value)}
+            />
           </SettingsGroup>
-          <SettingsGroup label="Environment" htmlFor="developer-environment">
-            <input id="developer-environment" className={settingsInputClassName(true)} value={values.environment} disabled />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <SettingsFieldRow>
-          <SettingsGroup label="Database" htmlFor="developer-database">
-            <input id="developer-database" className={settingsInputClassName(true)} value={values.database} disabled />
-          </SettingsGroup>
-          <SettingsGroup label="Migrations" htmlFor="developer-migrations">
-            <input id="developer-migrations" className={settingsInputClassName(true)} value={values.migrations} disabled />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <SettingsFieldRow>
-          <SettingsGroup label="Diagnostics" htmlFor="developer-diagnostics">
-            <input id="developer-diagnostics" className={settingsInputClassName(true)} value={values.diagnostics} disabled />
-          </SettingsGroup>
-          <SettingsGroup label="Logs" htmlFor="developer-logs">
-            <input id="developer-logs" className={settingsInputClassName(true)} value={values.logs} disabled />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <SettingsFieldRow>
-          <SettingsGroup label="Feature flags" htmlFor="developer-feature-flags">
-            <input id="developer-feature-flags" className={settingsInputClassName(true)} value={values.featureFlags} disabled />
-          </SettingsGroup>
-          <SettingsGroup label="Export diagnostics" htmlFor="developer-export-diagnostics">
-            <input id="developer-export-diagnostics" className={settingsInputClassName(true)} value={values.exportDiagnostics} disabled />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <SettingsComingSoonBadge />
-          <span>Developer tooling is read-only until diagnostic endpoints are implemented.</span>
-        </div>
-      </SettingsFieldStack>
+          <SettingsFieldRow>
+            <SettingsGroup label="Default lead owner" htmlFor="developer-lead-owner">
+              <input
+                id="developer-lead-owner"
+                className={settingsInputClassName()}
+                value={values.defaultLeadOwner}
+                onChange={(event) => setField("defaultLeadOwner", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Default pipeline stage" htmlFor="developer-pipeline-stage">
+              <input
+                id="developer-pipeline-stage"
+                className={settingsInputClassName()}
+                value={values.defaultPipelineStage}
+                onChange={(event) => setField("defaultPipelineStage", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <SettingsFieldRow>
+            <SettingsGroup label="Default project status" htmlFor="developer-project-status">
+              <input
+                id="developer-project-status"
+                className={settingsInputClassName()}
+                value={values.defaultProjectStatus}
+                onChange={(event) => setField("defaultProjectStatus", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Delivery stages" htmlFor="developer-delivery-stages">
+              <input
+                id="developer-delivery-stages"
+                className={settingsInputClassName()}
+                value={values.deliveryStages}
+                placeholder="Discovery, Design, Build, Launch"
+                onChange={(event) => setField("deliveryStages", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <SettingsFieldRow>
+            <SettingsGroup label="Signature expiry (days)" htmlFor="developer-signature-expiry">
+              <input
+                id="developer-signature-expiry"
+                className={settingsInputClassName()}
+                value={values.defaultSignatureExpiryDays}
+                onChange={(event) => setField("defaultSignatureExpiryDays", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Default template ID" htmlFor="developer-template-id">
+              <input
+                id="developer-template-id"
+                className={settingsInputClassName()}
+                value={values.defaultTemplateId}
+                onChange={(event) => setField("defaultTemplateId", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          {saveError ? <FinanceErrorBanner message={saveError} /> : null}
+        </SettingsFieldStack>
+      )}
     </SettingsSection>
   );
 }

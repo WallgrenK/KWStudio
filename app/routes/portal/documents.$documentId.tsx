@@ -252,7 +252,7 @@ export default function PortalDocumentDetailPage() {
         <PortalErrorState title="Document unavailable" description={error ?? "Document not found."} />
         <Link
           to="/portal/documents"
-          className="mt-4 inline-block text-sm font-medium text-[#2E75BD] hover:underline"
+          className="mt-4 inline-block text-sm font-medium text-kw-brand hover:underline"
         >
           Back to documents
         </Link>
@@ -266,7 +266,7 @@ export default function PortalDocumentDetailPage() {
       action={(
         <Link
           to="/portal/documents"
-          className="text-sm font-medium text-[#2E75BD] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:rounded"
+          className="text-sm font-medium text-kw-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:rounded"
         >
           All documents
         </Link>
@@ -355,7 +355,7 @@ export default function PortalDocumentDetailPage() {
             {pdfMessage ? <p className="mt-3 text-sm text-gray-600">{pdfMessage}</p> : null}
             <button
               type="button"
-              className="btn btn-primary mt-4 inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+              className="btn btn-primary mt-4 inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
               disabled={pdfLoading}
               aria-label="Download document PDF"
               onClick={() => {
@@ -406,9 +406,9 @@ export default function PortalDocumentDetailPage() {
                 <button
                   key={version.id}
                   type="button"
-                  className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2 ${
+                  className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2 ${
                     selectedVersionId === version.id
-                      ? "border-[#2E75BD] bg-[#eff6ff] text-[#2E75BD]"
+                      ? "border-kw-brand bg-[#eff6ff] text-kw-brand"
                       : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                   }`}
                   onClick={() => void handleVersionChange(version.id)}

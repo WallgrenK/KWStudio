@@ -37,9 +37,9 @@ export function PortalTimeline({ phases }: PortalTimelineProps) {
               <span
                 className={`flex size-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition-colors duration-200 ${
                   isCompleted
-                    ? "border-[#2E75BD] bg-[#2E75BD] text-white"
+                    ? "border-kw-brand bg-kw-brand text-white"
                     : isCurrent
-                      ? "border-[#2E75BD] bg-[#eff6ff] text-[#2E75BD] ring-4 ring-[#eff6ff]"
+                      ? "border-kw-brand bg-[#eff6ff] text-kw-brand ring-4 ring-[#eff6ff]"
                       : "border-gray-200 bg-white text-gray-400"
                 }`}
               >
@@ -54,7 +54,7 @@ export function PortalTimeline({ phases }: PortalTimelineProps) {
                   {phase.label}
                 </p>
                 {isCurrent ? (
-                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.08em] text-[#2E75BD]">Current</p>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.08em] text-kw-brand">Current</p>
                 ) : null}
               </div>
             </li>

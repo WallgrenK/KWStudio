@@ -29,7 +29,7 @@ const SETTINGS_STATUS_MAP: Record<SettingsStatus, SettingsStatusConfig> = {
 };
 
 const SETTINGS_STATUS_COLOR_STYLES: Record<BadgeColor, string> = {
-  primary: "bg-[#eff6ff] text-[#2E75BD]",
+  primary: "bg-[#eff6ff] text-kw-brand",
   success: "bg-green-50 text-green-700",
   error: "bg-red-50 text-red-700",
   warning: "bg-amber-50 text-amber-700",

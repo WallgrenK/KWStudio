@@ -136,6 +136,7 @@ export function createPortalProject(clientId: string, payload: {
   serviceId: string;
   startDate?: string;
   dueDate?: string;
+  status?: string;
 }) {
   return requestPortalApi<{ ok: true; project: PortalProjectDto }>(`/portal/clients/${clientId}/projects`, {
     method: "POST",

@@ -8,7 +8,7 @@ type LeadRecommendedPackageProps = {
 
 const packageStyles: Record<RecommendedPackageName, string> = {
   Starter: "bg-sky-50 text-sky-700",
-  Business: "bg-blue-50 text-[#2E75BD]",
+  Business: "bg-blue-50 text-kw-brand",
   Growth: "bg-emerald-50 text-emerald-700",
   Enterprise: "bg-gray-900 text-white",
 };

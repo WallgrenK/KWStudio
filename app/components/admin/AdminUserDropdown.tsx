@@ -29,8 +29,8 @@ export function AdminUserDropdown({ displayName, email, onSignOut }: AdminUserDr
 
   return (
     <details className="admin-native-dropdown relative">
-      <summary className="flex cursor-pointer list-none items-center rounded-lg text-gray-700 transition-colors hover:text-gray-900 focus:outline-none focus:ring-3 focus:ring-[#2E75BD]/10">
-        <span className="mr-3 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[#2E75BD] text-sm font-bold text-white">
+      <summary className="flex cursor-pointer list-none items-center rounded-lg text-gray-700 transition-colors hover:text-gray-900 focus:outline-none focus:ring-3 focus:ring-kw-brand/10">
+        <span className="mr-3 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-kw-brand text-sm font-bold text-white">
           {initials}
         </span>
         <span className="mr-1 block text-sm font-medium">{displayName}</span>

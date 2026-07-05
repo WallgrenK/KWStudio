@@ -30,7 +30,7 @@ export function PortalProjectSwitcher({
         <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:min-w-[240px]">
           <span className="text-xs font-medium text-gray-500">Switch project</span>
           <select
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40"
+            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40"
             value={selectedProjectId}
             onChange={(event) => onSelect(event.target.value)}
           >

@@ -200,7 +200,7 @@ export default function AdminDocumentsPage() {
       align: "right",
       render: (row) => (
         <Link
-          className="text-sm font-medium text-[#2E75BD] hover:underline"
+          className="text-sm font-medium text-kw-brand hover:underline"
           to={`/admin/documents/${row.id}`}
           onClick={(event) => event.stopPropagation()}
         >

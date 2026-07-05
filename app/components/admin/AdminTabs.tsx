@@ -22,7 +22,7 @@ export function AdminTabs<T extends AdminTab>({ tabs, activeTab, onChange }: Adm
                 key={tab.id}
                 className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition ${
                   isActive
-                    ? "bg-[#2E75BD] text-white shadow-sm"
+                    ? "bg-kw-brand text-white shadow-sm"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
                 type="button"

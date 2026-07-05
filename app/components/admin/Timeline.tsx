@@ -15,7 +15,7 @@ export function Timeline({ title = "Timeline", items }: { title?: string; items:
       <div className="mt-5 space-y-5">
         {items.map((item) => (
           <div key={item.id} className="flex gap-3">
-            <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-[#2E75BD]" />
+            <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-kw-brand" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>

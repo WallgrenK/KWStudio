@@ -19,7 +19,7 @@ export function QuickActions({ title = "Quick actions", actions }: { title?: str
             <Link
               key={action.href}
               to={action.href}
-              className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-[#2E75BD] hover:bg-gray-50"
+              className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-kw-brand hover:bg-gray-50"
             >
               <Icon className="h-5 w-5 text-gray-500" aria-hidden="true" />
               <span>

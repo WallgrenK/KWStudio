@@ -5,6 +5,7 @@
  * Do not treat these values as production business data.
  */
 
+import { DEFAULT_BUSINESS_SETTINGS, DEFAULT_PUBLIC_SETTINGS } from "~/settings/settingsDefaults";
 import type { ActionType, DueStatus } from "~/types/workflow";
 
 export type PortalProjectPhaseId =
@@ -191,17 +192,17 @@ export const DEMO_FALLBACK_ACTIVITY: PortalActivityItem[] = [
 export const DEMO_FALLBACK_CONTACT: PortalContactInfo = {
   name: "Kim Wahlström",
   role: "Project manager",
-  email: "hello@kwstudio.se",
+  email: DEFAULT_PUBLIC_SETTINGS.business.contactEmail,
   responseTime: "Within 1 business day",
 };
 
 /** Default owner label when project API has no owner field yet. */
-export const DEMO_FALLBACK_PROJECT_OWNER = "KWStudio team";
+export const DEMO_FALLBACK_PROJECT_OWNER = `${DEFAULT_BUSINESS_SETTINGS.companyName} team`;
 
 export const PORTAL_QUICK_ACCESS: PortalQuickAccessItem[] = [
   { id: "documents", title: "Documents", description: "Proposals, contracts, and briefs", href: "/portal/documents" },
   { id: "invoices", title: "Invoices", description: "Billing history and receipts", href: "/portal/invoices" },
-  { id: "messages", title: "Messages", description: "Conversations with KWStudio", href: "/portal/messages" },
+  { id: "messages", title: "Messages", description: `Conversations with ${DEFAULT_BUSINESS_SETTINGS.companyName}`, href: "/portal/messages" },
   { id: "files", title: "Files", description: "Shared assets and deliverables", href: "/portal/files" },
   { id: "support", title: "Support", description: "Help and project questions", href: "/portal/support" },
 ];

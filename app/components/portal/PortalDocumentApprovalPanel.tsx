@@ -84,7 +84,7 @@ export function PortalDocumentApprovalPanel({
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            className="btn btn-primary inline-flex justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+            className="btn btn-primary inline-flex justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
             onClick={() => setMode("approve")}
             disabled={loading}
             aria-label="Approve document"
@@ -111,7 +111,7 @@ export function PortalDocumentApprovalPanel({
             </label>
             <textarea
               id="approval-comment"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-[#2E75BD] focus:outline-none focus:ring-2 focus:ring-[#2E75BD]/20"
+              className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-kw-brand focus:outline-none focus:ring-2 focus:ring-kw-brand/20"
               rows={4}
               value={comment}
               onChange={(event) => setComment(event.target.value)}
@@ -129,7 +129,7 @@ export function PortalDocumentApprovalPanel({
               type="submit"
               className={
                 mode === "approve"
-                  ? "btn btn-primary inline-flex justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+                  ? "btn btn-primary inline-flex justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
                   : "btn inline-flex justify-center border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40 focus-visible:ring-offset-2"
               }
               disabled={loading || (mode === "reject" && !comment.trim())}

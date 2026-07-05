@@ -54,12 +54,12 @@ export function LeadAiSummary({
     <section className="rounded-3xl border border-blue-100 bg-gradient-to-b from-blue-50/80 to-white p-5 shadow-sm md:p-6">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#2E75BD]">🤖 AI Sales Assistant</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-kw-brand">🤖 AI Sales Assistant</p>
           <h3 className="mt-2 text-xl font-semibold text-gray-900">Executive sales summary</h3>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {copiedMessage ? (
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#2E75BD] shadow-sm">{copiedMessage}</span>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-kw-brand shadow-sm">{copiedMessage}</span>
           ) : null}
           {!hasInsight && !isBusy ? (
             <button className="btn btn-primary" type="button" disabled={!canGenerate} onClick={onGenerate}>
@@ -94,7 +94,7 @@ export function LeadAiSummary({
             <div className="rounded-2xl bg-white p-4 shadow-sm">
               <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Confidence</span>
               <strong className="mt-2 block text-sm text-gray-900">{confidence.score}%</strong>
-              <span className="mt-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-[#2E75BD]">{confidence.label}</span>
+              <span className="mt-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-kw-brand">{confidence.label}</span>
             </div>
             <div className="rounded-2xl bg-white p-4 shadow-sm">
               <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Estimated value</span>

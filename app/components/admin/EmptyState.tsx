@@ -12,7 +12,7 @@ type EmptyStateProps = {
 export function EmptyState({ icon: Icon = Inbox, title, description, action }: EmptyStateProps) {
   return (
     <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-10 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#eff6ff] text-[#2E75BD]">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#eff6ff] text-kw-brand">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
       <h2 className="mt-4 text-base font-semibold text-gray-800">{title}</h2>

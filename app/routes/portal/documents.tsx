@@ -100,7 +100,7 @@ export default function PortalDocumentsPage() {
       action={(
         <Link
           to="/portal/dashboard"
-          className="text-sm font-medium text-[#2E75BD] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:rounded"
+          className="text-sm font-medium text-kw-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:rounded"
         >
           Dashboard
         </Link>
@@ -123,7 +123,7 @@ export default function PortalDocumentsPage() {
       {documents.length ? (
         <div className="space-y-3" role="list" aria-label="Your documents">
           {documents.map((document) => (
-            <PortalCard key={document.id} padding="md" className={`transition-colors ${document.isHighlighted ? "border-[#2E75BD]/40 bg-[#f8fbff]" : "hover:border-[#2E75BD]/30"}`}>
+            <PortalCard key={document.id} padding="md" className={`transition-colors ${document.isHighlighted ? "border-kw-brand/40 bg-[#f8fbff]" : "hover:border-kw-brand/30"}`}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -139,7 +139,7 @@ export default function PortalDocumentsPage() {
                       </span>
                     ) : null}
                     {document.isHighlighted ? (
-                      <span className="inline-flex items-center rounded-full bg-[#eff6ff] px-3 py-1 text-xs font-medium text-[#2E75BD]">
+                      <span className="inline-flex items-center rounded-full bg-[#eff6ff] px-3 py-1 text-xs font-medium text-kw-brand">
                         New
                       </span>
                     ) : null}
@@ -148,7 +148,7 @@ export default function PortalDocumentsPage() {
                   <h2 className="mt-2 text-lg font-semibold text-gray-900">
                     <Link
                       to={`/portal/documents/${document.id}`}
-                      className="rounded hover:text-[#2E75BD] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40"
+                      className="rounded hover:text-kw-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40"
                     >
                       {document.title}
                     </Link>
@@ -173,7 +173,7 @@ export default function PortalDocumentsPage() {
                 </div>
                 <Link
                   to={`/portal/documents/${document.id}`}
-                  className="btn btn-primary inline-flex shrink-0 justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+                  className="btn btn-primary inline-flex shrink-0 justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
                   aria-label={`Preview ${document.title}`}
                 >
                   Preview

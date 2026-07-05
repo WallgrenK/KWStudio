@@ -1,4 +1,5 @@
 import type { PortalContactInfo } from "~/data/portalDashboard";
+import { usePublicPortalSettings } from "~/settings/usePublicPortalSettings";
 import { PortalCard, PortalEmptyState } from "./PortalSection";
 
 type PortalContactCardProps = {
@@ -6,12 +7,15 @@ type PortalContactCardProps = {
 };
 
 export function PortalContactCard({ contact }: PortalContactCardProps) {
+  const portal = usePublicPortalSettings();
+  const companyName = portal.companyName;
+
   if (!contact) {
     return (
       <PortalCard>
         <PortalEmptyState
           title="Contact details coming soon"
-          description="Your KWStudio project manager will appear here once assigned."
+          description={`Your ${companyName} project manager will appear here once assigned.`}
         />
       </PortalCard>
     );
@@ -35,11 +39,11 @@ export function PortalContactCard({ contact }: PortalContactCardProps) {
           </div>
         </dl>
         <button
-          className="btn btn-primary w-full transition-opacity duration-200 hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+          className="btn btn-primary w-full transition-opacity duration-200 hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
           type="button"
           disabled
         >
-          Contact KWStudio
+          Contact {companyName}
         </button>
         <p className="text-center text-xs text-gray-400">Messaging will be available in a future update.</p>
       </div>

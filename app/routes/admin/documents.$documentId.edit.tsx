@@ -149,7 +149,7 @@ export default function AdminDocumentEditorPage() {
         title={document.title}
         description="Visual document editor"
         action={(
-          <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" to={`/admin/documents/${documentId}`}>
+          <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand" to={`/admin/documents/${documentId}`}>
             Back to detail
           </Link>
         )}
@@ -167,7 +167,7 @@ export default function AdminDocumentEditorPage() {
       title={document.title}
       description="Visual document editor"
       action={(
-        <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" to={`/admin/documents/${documentId}`}>
+        <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand" to={`/admin/documents/${documentId}`}>
           Back to detail
         </Link>
       )}

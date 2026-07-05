@@ -17,7 +17,7 @@ export function ScoreCard({ label, score, detail }: ScoreCardProps) {
         <strong className={`text-3xl font-bold ${tone}`}>{score}</strong>
       </div>
       <div className="mt-5 h-2 rounded-full bg-gray-100">
-        <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${score}%` }} />
+        <div className="h-2 rounded-full bg-kw-brand" style={{ width: `${score}%` }} />
       </div>
     </article>
   );

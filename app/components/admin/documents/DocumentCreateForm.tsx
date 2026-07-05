@@ -10,6 +10,7 @@ import {
   listDocumentTypes,
   listServiceDocumentDefaults,
 } from "~/services/documentsApi";
+import { useSettingsCategory } from "~/settings/useSettingsCategory";
 import type { DocumentTemplateDto, DocumentTypeDto, ServiceDocumentDefaultDto } from "~/types/documents";
 import type { PortalClientDto } from "~/types/portal";
 import type { AdminProjectListItemDto, PortalServiceDto } from "~/types/workflow";
@@ -18,6 +19,7 @@ type TemplateOption = DocumentTemplateDto & { isDefaultForType: boolean };
 
 export function DocumentCreateForm() {
   const navigate = useNavigate();
+  const developerSettings = useSettingsCategory("developer");
   const [clients, setClients] = useState<PortalClientDto[]>([]);
   const [projects, setProjects] = useState<AdminProjectListItemDto[]>([]);
   const [services, setServices] = useState<PortalServiceDto[]>([]);
@@ -138,12 +140,19 @@ export function DocumentCreateForm() {
 
   useEffect(() => {
     if (!documentTypeId) return;
-    const defaultTemplate = visibleTemplates.find((template) => template.isDefaultForType) ?? visibleTemplates[0];
+    const configuredTemplateId = developerSettings.data.documents.defaultTemplateId;
+    const configuredTemplate = configuredTemplateId
+      ? visibleTemplates.find((template) => template.id === configuredTemplateId)
+      : null;
+    const defaultTemplate =
+      configuredTemplate ??
+      visibleTemplates.find((template) => template.isDefaultForType) ??
+      visibleTemplates[0];
     if (defaultTemplate) {
       setTemplateId(defaultTemplate.id);
       if (!title.trim()) setTitle(defaultTemplate.name);
     }
-  }, [documentTypeId, visibleTemplates, title]);
+  }, [documentTypeId, developerSettings.data.documents.defaultTemplateId, visibleTemplates, title]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -191,7 +200,7 @@ export function DocumentCreateForm() {
           <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
             Client
             <select
-              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-kw-brand focus:ring-3 focus:ring-kw-brand/10"
               value={clientId}
               onChange={(event) => {
                 setClientId(event.target.value);
@@ -211,7 +220,7 @@ export function DocumentCreateForm() {
           <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
             Project (optional)
             <select
-              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-kw-brand focus:ring-3 focus:ring-kw-brand/10"
               value={projectId}
               onChange={(event) => setProjectId(event.target.value)}
             >
@@ -227,7 +236,7 @@ export function DocumentCreateForm() {
           <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
             Service
             <select
-              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-kw-brand focus:ring-3 focus:ring-kw-brand/10"
               value={serviceId}
               onChange={(event) => setServiceId(event.target.value)}
               required
@@ -243,7 +252,7 @@ export function DocumentCreateForm() {
           <label className="flex flex-col gap-2 text-sm font-medium text-gray-700">
             Document type
             <select
-              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-kw-brand focus:ring-3 focus:ring-kw-brand/10"
               value={documentTypeId}
               onChange={(event) => setDocumentTypeId(event.target.value)}
               required
@@ -259,7 +268,7 @@ export function DocumentCreateForm() {
           <label className="md:col-span-2 flex flex-col gap-2 text-sm font-medium text-gray-700">
             Title
             <input
-              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-[#2E75BD] focus:ring-3 focus:ring-[#2E75BD]/10"
+              className="h-11 rounded-lg border border-gray-200 px-3 text-gray-800 outline-none focus:border-kw-brand focus:ring-3 focus:ring-kw-brand/10"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder={selectedType ? `${selectedType.name} title` : "Document title"}
@@ -287,8 +296,8 @@ export function DocumentCreateForm() {
                   key={template.id}
                   className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition ${
                     templateId === template.id
-                      ? "border-[#2E75BD] bg-[#eff6ff]"
-                      : "border-gray-200 hover:border-[#2E75BD]/40"
+                      ? "border-kw-brand bg-[#eff6ff]"
+                      : "border-gray-200 hover:border-kw-brand/40"
                   }`}
                 >
                   <input
@@ -305,7 +314,7 @@ export function DocumentCreateForm() {
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold text-gray-900">{template.name}</span>
                       {isDefault ? (
-                        <span className="rounded-full bg-[#2E75BD] px-2 py-0.5 text-xs font-semibold text-white">
+                        <span className="rounded-full bg-kw-brand px-2 py-0.5 text-xs font-semibold text-white">
                           Default
                         </span>
                       ) : null}
@@ -329,7 +338,7 @@ export function DocumentCreateForm() {
         <button type="submit" className="btn btn-primary" disabled={submitting || !templateId}>
           {submitting ? "Creating…" : "Create document"}
         </button>
-        <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" to="/admin/documents">
+        <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-kw-brand" to="/admin/documents">
           Cancel
         </Link>
       </div>

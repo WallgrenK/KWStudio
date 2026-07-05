@@ -20,7 +20,7 @@ export function PortalHero({ firstName, project, preparingSpace = false }: Porta
     <PortalCard padding="lg" className="overflow-hidden bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_100%)]">
       <div className="space-y-6">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium text-[#2E75BD]">Welcome back, {firstName}</p>
+          <p className="text-sm font-medium text-kw-brand">Welcome back, {firstName}</p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl md:text-4xl">
             {headline}
           </h1>
@@ -35,7 +35,7 @@ export function PortalHero({ firstName, project, preparingSpace = false }: Porta
             </div>
             <div className="min-w-0">
               <dt className="text-xs font-medium uppercase tracking-[0.08em] text-gray-400">Current phase</dt>
-              <dd className="mt-1 text-sm font-semibold capitalize text-[#2E75BD]">{project.currentPhase}</dd>
+              <dd className="mt-1 text-sm font-semibold capitalize text-kw-brand">{project.currentPhase}</dd>
             </div>
             <div className="min-w-0">
               <dt className="text-xs font-medium uppercase tracking-[0.08em] text-gray-400">Project owner</dt>

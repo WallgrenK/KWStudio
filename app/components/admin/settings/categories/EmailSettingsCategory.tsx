@@ -1,66 +1,79 @@
-import { useCallback } from "react";
-import { useSettingsContext } from "../SettingsContext";
+import {
+  FinanceErrorBanner,
+  FinanceLoadingMessage,
+} from "~/components/admin/finance/FinanceFeedback";
 import { SettingsFieldRow, SettingsFieldStack, SettingsGroup, settingsInputClassName } from "../SettingsGroup";
-import { SettingsComingSoonBadge } from "../SettingsStatusBadge";
 import { SettingsSection } from "../SettingsSection";
-import { useSettingsCategoryRegistration, useSettingsForm } from "../useSettingsForm";
-
-type EmailFormState = {
-  fromName: string;
-  fromAddress: string;
-  replyTo: string;
-  signature: string;
-};
-
-const INITIAL: EmailFormState = {
-  fromName: "KWStudio",
-  fromAddress: "hello@kwstudio.se",
-  replyTo: "hello@kwstudio.se",
-  signature: "",
-};
+import {
+  emailToFormState,
+  emailToPatch,
+  EMPTY_EMAIL_FORM,
+} from "../settingsCategoryForms";
+import { usePersistedSettingsCategory } from "../usePersistedSettingsCategory";
 
 export function EmailSettingsCategory() {
-  const { registerHandlers, unregisterHandlers } = useSettingsContext();
-  const { values, isDirty, reset, markSaved } = useSettingsForm(INITIAL);
-
-  const save = useCallback(() => {
-    markSaved();
-  }, [markSaved]);
-
-  useSettingsCategoryRegistration("email", isDirty, save, reset, registerHandlers, unregisterHandlers);
+  const { values, setField, isLoading, loadError, saveError } = usePersistedSettingsCategory({
+    categoryId: "email",
+    emptyForm: EMPTY_EMAIL_FORM,
+    toFormState: emailToFormState,
+    toPatch: emailToPatch,
+  });
 
   return (
     <SettingsSection
       title="Email"
       description="Outbound email identity and signature defaults for client communication."
     >
-      <SettingsFieldStack>
-        <SettingsFieldRow>
-          <SettingsGroup label="From name" htmlFor="email-from-name">
-            <input id="email-from-name" className={settingsInputClassName(true)} value={values.fromName} disabled />
-          </SettingsGroup>
-          <SettingsGroup label="From address" htmlFor="email-from-address">
-            <input id="email-from-address" className={settingsInputClassName(true)} value={values.fromAddress} disabled />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <SettingsFieldRow>
-          <SettingsGroup label="Reply-to address" htmlFor="email-reply-to">
-            <input id="email-reply-to" className={settingsInputClassName(true)} value={values.replyTo} disabled />
-          </SettingsGroup>
-          <SettingsGroup label="Signature" htmlFor="email-signature">
-            <textarea
-              id="email-signature"
-              className={`${settingsInputClassName(true)} min-h-20 py-3`}
-              value={values.signature}
-              disabled
-            />
-          </SettingsGroup>
-        </SettingsFieldRow>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <SettingsComingSoonBadge />
-          <span>SMTP and provider routing will be configured in a future release.</span>
-        </div>
-      </SettingsFieldStack>
+      {isLoading ? (
+        <FinanceLoadingMessage message="Loading email settings…" />
+      ) : loadError ? (
+        <FinanceErrorBanner message={loadError} />
+      ) : (
+        <SettingsFieldStack>
+          <SettingsFieldRow>
+            <SettingsGroup label="From name" htmlFor="email-from-name">
+              <input
+                id="email-from-name"
+                className={settingsInputClassName()}
+                value={values.fromName}
+                onChange={(event) => setField("fromName", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="From address" htmlFor="email-from-address">
+              <input
+                id="email-from-address"
+                type="email"
+                className={settingsInputClassName()}
+                value={values.fromAddress}
+                onChange={(event) => setField("fromAddress", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <SettingsFieldRow>
+            <SettingsGroup label="Reply-to address" htmlFor="email-reply-to">
+              <input
+                id="email-reply-to"
+                type="email"
+                className={settingsInputClassName()}
+                value={values.replyTo}
+                onChange={(event) => setField("replyTo", event.target.value)}
+              />
+            </SettingsGroup>
+            <SettingsGroup label="Signature" htmlFor="email-signature">
+              <textarea
+                id="email-signature"
+                className={`${settingsInputClassName()} min-h-20 py-3`}
+                value={values.signature}
+                onChange={(event) => setField("signature", event.target.value)}
+              />
+            </SettingsGroup>
+          </SettingsFieldRow>
+          <p className="text-sm text-gray-500">
+            SMTP credentials and provider routing remain in environment variables.
+          </p>
+          {saveError ? <FinanceErrorBanner message={saveError} /> : null}
+        </SettingsFieldStack>
+      )}
     </SettingsSection>
   );
 }

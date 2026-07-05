@@ -12,7 +12,7 @@ import { isPortalApiConfigured } from "~/services/portalApi";
 import type { NotificationDto, NotificationSeverity } from "~/types/notifications";
 
 const SEVERITY_STYLES: Record<NotificationSeverity, { icon: typeof Info; className: string }> = {
-  info: { icon: Info, className: "text-[#2E75BD] bg-[#2E75BD]/10" },
+  info: { icon: Info, className: "text-kw-brand bg-kw-brand/10" },
   success: { icon: CheckCircle2, className: "text-emerald-700 bg-emerald-100" },
   warning: { icon: AlertTriangle, className: "text-amber-700 bg-amber-100" },
   critical: { icon: AlertOctagon, className: "text-red-700 bg-red-100" },
@@ -61,7 +61,7 @@ function NotificationItem({
             <span className="mt-1 block text-xs text-gray-400">{notification.timeLabel}</span>
           </span>
           {!notification.is_read ? (
-            <span className="mt-1 size-2 shrink-0 rounded-full bg-[#2E75BD]" aria-label="Unread" />
+            <span className="mt-1 size-2 shrink-0 rounded-full bg-kw-brand" aria-label="Unread" />
           ) : null}
         </span>
       </span>
@@ -73,7 +73,7 @@ function NotificationItem({
       <li>
         <Link
           to={href}
-          className="flex gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40"
+          className="flex gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40"
           onClick={() => void onSelect(notification, false)}
         >
           {content}
@@ -86,7 +86,7 @@ function NotificationItem({
     <li>
       <button
         type="button"
-        className="flex w-full gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40"
+        className="flex w-full gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40"
         onClick={() => void onSelect(notification, true)}
       >
         {content}
@@ -132,7 +132,7 @@ export function NotificationBell({ audience, enabled = true }: NotificationBellP
   return (
     <details ref={detailsRef} className="relative">
       <summary
-        className="relative flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2 md:size-11"
+        className="relative flex size-10 cursor-pointer list-none items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2 md:size-11"
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
       >
         {unreadCount > 0 ? (
@@ -149,7 +149,7 @@ export function NotificationBell({ audience, enabled = true }: NotificationBellP
           {unreadCount > 0 ? (
             <button
               type="button"
-              className="text-xs font-medium text-[#2E75BD] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40"
+              className="text-xs font-medium text-kw-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40"
               onClick={() => void markAllRead()}
             >
               Mark all read

@@ -22,7 +22,7 @@ export function LeadPreviewPanel({
           <p className="mt-1 truncate text-sm text-gray-500">{data.location}</p>
         </div>
         <button
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:border-[#2E75BD] hover:text-[#2E75BD]"
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:border-kw-brand hover:text-kw-brand"
           type="button"
           onClick={onClose}
         >
@@ -33,7 +33,7 @@ export function LeadPreviewPanel({
       <div className="mb-5 flex flex-wrap gap-2">{data.badges}</div>
 
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#2E75BD]">AI summary</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-kw-brand">AI summary</p>
         {isBusy ? (
           <div className="mt-3 animate-pulse space-y-2">
             <div className="h-3 rounded-full bg-gray-100" />
@@ -62,7 +62,7 @@ export function LeadPreviewPanel({
       </div>
 
       {data.copiedMessage ? (
-        <p className="mb-3 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-[#2E75BD]">{data.copiedMessage}</p>
+        <p className="mb-3 rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-kw-brand">{data.copiedMessage}</p>
       ) : null}
 
       <div className="grid gap-2">

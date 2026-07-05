@@ -111,7 +111,7 @@ export function AdminSidebar() {
         <Link to="/admin" onClick={closeMobileSidebar}>
           {showLabels ? (
             <span className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#2E75BD] text-sm font-bold text-white">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-kw-brand text-sm font-bold text-white">
                 KW
               </span>
               <span className="block">
@@ -120,7 +120,7 @@ export function AdminSidebar() {
               </span>
             </span>
           ) : (
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2E75BD] text-xs font-bold text-white">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-kw-brand text-xs font-bold text-white">
               KW
             </span>
           )}

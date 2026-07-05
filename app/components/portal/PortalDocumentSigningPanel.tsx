@@ -211,7 +211,7 @@ export function PortalDocumentSigningPanel({
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            className="btn btn-primary inline-flex justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2E75BD]/40 focus-visible:ring-offset-2"
+            className="btn btn-primary inline-flex justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kw-brand/40 focus-visible:ring-offset-2"
             onClick={() => void handleStartSigning()}
             disabled={loading || starting}
           >
