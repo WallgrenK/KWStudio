@@ -1438,10 +1438,6 @@ export function LeadsPage() {
   const handleDiscover = async (filters: ScbLeadFinderFilters) => {
     const scbRequest = buildScbRequest(filters);
 
-    if (import.meta.env.DEV) {
-      console.debug("SCB discovery request", scbRequest);
-    }
-
     setIsApiWorking(true);
     try {
       const result = await discoverScbLeads(scbRequest);
