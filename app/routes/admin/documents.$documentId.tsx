@@ -259,9 +259,17 @@ export default function AdminDocumentDetailPage() {
       title={document.title}
       description={labels.typeName}
       action={(
-        <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" to="/admin/documents">
-          Back to library
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            className="btn btn-primary"
+            to={`/admin/documents/${documentId}/edit${selectedVersionId ? `?version=${selectedVersionId}` : ""}`}
+          >
+            Open editor
+          </Link>
+          <Link className="btn border border-gray-200 bg-white text-gray-700 hover:border-[#2E75BD]" to="/admin/documents">
+            Back to library
+          </Link>
+        </div>
       )}
     >
       <div className="space-y-6">

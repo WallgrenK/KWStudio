@@ -11,7 +11,7 @@ import { PortalSection } from "~/components/portal/PortalSection";
 import { ProjectAssetsBrowser } from "~/components/assets/ProjectAssetsBrowser";
 import { usePortalAuth } from "~/hooks/usePortalAuth";
 import { useUserProfile } from "~/hooks/useUserProfile";
-import { pickPrimaryProjectId } from "~/lib/portalDashboardData";
+import { pickPrimaryProjectId, getPortalFirstName } from "~/lib/portalDashboardData";
 import { getPortalProjects, isPortalApiConfigured } from "~/services/portalApi";
 import { isAssetsApiConfigured } from "~/services/assetsApi";
 import type { PortalProjectDto } from "~/types/portal";
@@ -63,6 +63,7 @@ export default function PortalFilesPage() {
   }, [session]);
 
   const companyName = useMemo(() => me?.client?.company_name ?? undefined, [me?.client?.company_name]);
+  const firstName = me ? getPortalFirstName(me) : "there";
   const activeProjectId = selectedProjectId ?? projects[0]?.id ?? null;
 
   if (!isPortalApiConfigured || !isAssetsApiConfigured) {
@@ -92,7 +93,7 @@ export default function PortalFilesPage() {
   if (!projects.length || !activeProjectId) {
     return (
       <PortalDashboardLayout companyName={companyName}>
-        <PortalNoProjectState />
+        <PortalNoProjectState firstName={firstName} />
       </PortalDashboardLayout>
     );
   }
@@ -100,7 +101,7 @@ export default function PortalFilesPage() {
   return (
     <PortalDashboardLayout
       companyName={companyName}
-      headerAction={(
+      action={(
         <Link to="/portal/dashboard" className="text-sm font-medium text-gray-600 hover:text-gray-900">
           Dashboard
         </Link>
@@ -117,7 +118,7 @@ export default function PortalFilesPage() {
               status: project.status.replace(/_/g, " "),
             }))}
             selectedProjectId={activeProjectId}
-            onChange={setSelectedProjectId}
+            onSelect={setSelectedProjectId}
           />
         )}
       >

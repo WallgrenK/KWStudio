@@ -49,7 +49,7 @@ async function getAccessToken() {
 export async function requestPortalApi<T>(
   path: string,
   options: {
-    method?: "GET" | "POST" | "PATCH";
+    method?: "GET" | "POST" | "PATCH" | "PUT";
     body?: unknown;
     auth?: boolean;
   } = {},

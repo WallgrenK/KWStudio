@@ -19,6 +19,7 @@ export default [
     route("admin/documents", "routes/admin/documents.tsx"),
     route("admin/documents/new", "routes/admin/documents.new.tsx"),
     route("admin/documents/:documentId", "routes/admin/documents.$documentId.tsx"),
+    route("admin/documents/:documentId/edit", "routes/admin/documents.$documentId.edit.tsx"),
     route("admin/tasks", "routes/admin/tasks.tsx"),
     route("admin/clients", "routes/admin/clients.tsx"),
     route("admin/files", "routes/admin/files.tsx"),

@@ -21,7 +21,11 @@ import type {
   MobileSigningSessionDto,
   SigningSessionStatusDto,
   DocumentReceiptInfoDto,
+  DocumentBlockDto,
+  DocumentVariableDefinitionDto,
+  DocumentBlockTypeMetadataDto,
 } from "~/types/documents";
+import type { DocumentBlockSavePayload } from "~/types/documentEditor";
 
 export const isDocumentsApiConfigured = isPortalApiConfigured;
 
@@ -109,6 +113,63 @@ export function createDocumentNewVersion(documentId: string, changeSummary?: str
   return requestPortalApi<{ ok: true; version: DocumentVersionDto; blocks: unknown[] }>(
     `/portal/admin/documents/${documentId}/versions/new`,
     { method: "POST", body: changeSummary ? { changeSummary } : {} },
+  );
+}
+
+export function createDocumentDraftVersion(documentId: string) {
+  return requestPortalApi<{ ok: true; version: DocumentVersionDto; blocks: DocumentBlockDto[] }>(
+    `/portal/admin/documents/${documentId}/versions/draft`,
+    { method: "POST", body: {} },
+  );
+}
+
+export function getDocumentVersion(documentId: string, versionId: string) {
+  return requestPortalApi<{
+    ok: true;
+    version: DocumentVersionDto;
+    blocks: DocumentBlockDto[];
+  }>(`/portal/admin/documents/${documentId}/versions/${versionId}`);
+}
+
+export function saveDocumentDraftBlocks(versionId: string, blocks: DocumentBlockSavePayload[]) {
+  return requestPortalApi<{
+    ok: true;
+    version: DocumentVersionDto;
+    blocks: DocumentBlockDto[];
+  }>(`/portal/admin/documents/versions/${versionId}/blocks`, {
+    method: "PUT",
+    body: { blocks },
+  });
+}
+
+export function validateDocumentVersionApi(documentId: string, versionId: string) {
+  return requestPortalApi<{
+    ok: boolean;
+    errors: string[];
+    warnings: string[];
+  }>(`/portal/admin/documents/${documentId}/versions/${versionId}/validate`);
+}
+
+export function discardDocumentDraftVersion(documentId: string, versionId: string) {
+  return requestPortalApi<DocumentSnapshotDto & { ok: true }>(
+    `/portal/admin/documents/versions/${versionId}/discard`,
+    { method: "POST", body: { documentId } },
+  );
+}
+
+export function listDocumentBlockTypes() {
+  return requestPortalApi<{ ok: true; blockTypes: DocumentBlockTypeMetadataDto[] }>(
+    "/portal/admin/document-block-types",
+  );
+}
+
+export function listDocumentVariables(filters: { namespace?: string; documentType?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.namespace) params.set("namespace", filters.namespace);
+  if (filters.documentType) params.set("documentType", filters.documentType);
+  const query = params.toString();
+  return requestPortalApi<{ ok: true; variables: DocumentVariableDefinitionDto[] }>(
+    `/portal/admin/document-variables${query ? `?${query}` : ""}`,
   );
 }
 
