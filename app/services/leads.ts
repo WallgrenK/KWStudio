@@ -1,5 +1,7 @@
-import { isSupabaseConfigured, supabase, type Database } from "~/lib/supabase";
 import type { LeadPriority, LeadStage } from "~/data/admin";
+import { isKwstudioApiConfigured } from "~/services/kwstudioApi";
+import { supabase } from "~/lib/supabase";
+import type { Database } from "~/lib/supabase";
 
 export type Company = Database["public"]["Tables"]["companies"]["Row"];
 export type Lead = Database["public"]["Tables"]["leads"]["Row"];
@@ -16,8 +18,18 @@ export type LeadWithCompanyAndAudit = Lead & {
 export type LeadsResult = {
   leads: LeadWithCompanyAndAudit[];
   latestImport: ScbImportRun | null;
-  source: "supabase" | "unconfigured" | "error";
+  source: "api" | "unconfigured" | "error";
   error?: string;
+};
+
+type ApiLeadRow = Lead & {
+  company: Company | null;
+  website_audits: WebsiteAudit[] | null;
+};
+
+type LeadsApiResponse = {
+  leads: ApiLeadRow[];
+  latestImport: ScbImportRun | null;
 };
 
 function leadStageToStatus(stage: string) {
@@ -41,132 +53,95 @@ function statusToPriority(priority: string): LeadPriority {
   return "Medium";
 }
 
-async function getCompaniesById(companyIds: string[]) {
-  const uniqueCompanyIds = [...new Set(companyIds)];
-  if (uniqueCompanyIds.length === 0) return new Map<string, Company>();
+function mapApiLead(row: ApiLeadRow): LeadWithCompanyAndAudit {
+  const audits = [...(row.website_audits ?? [])].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
 
-  const { data, error } = await supabase
-    .from("companies")
-    .select("*")
-    .in("id", uniqueCompanyIds);
+  const { website_audits: _audits, ...lead } = row;
 
-  if (error) throw error;
-  return new Map((data ?? []).map((company) => [company.id, company]));
+  return {
+    ...lead,
+    company: row.company ?? null,
+    latestAudit: audits[0] ?? null,
+    latestEvent: null,
+  };
 }
 
-async function getLatestAuditsByLeadId(leadIds: string[]) {
-  const uniqueLeadIds = [...new Set(leadIds)];
-  if (uniqueLeadIds.length === 0) return new Map<string, WebsiteAudit>();
+async function getAccessToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+}
 
-  const { data, error } = await supabase
-    .from("website_audits")
-    .select("*")
-    .in("lead_id", uniqueLeadIds)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  const audits = new Map<string, WebsiteAudit>();
-  for (const audit of data ?? []) {
-    if (audit.lead_id && !audits.has(audit.lead_id)) {
-      audits.set(audit.lead_id, audit);
-    }
+async function requestLeadsApi<T>(path: string, options: { method?: "GET" | "POST"; body?: unknown } = {}) {
+  const apiUrl = import.meta.env.VITE_KWSTUDIO_API_URL;
+  if (!apiUrl) {
+    return { ok: false as const, error: "API not configured. Set VITE_KWSTUDIO_API_URL." };
   }
 
-  return audits;
-}
-
-async function getLatestEventsByLeadId(leadIds: string[]) {
-  const uniqueLeadIds = [...new Set(leadIds)];
-  if (uniqueLeadIds.length === 0) return new Map<string, LeadEvent>();
-
-  const { data, error } = await supabase
-    .from("lead_events")
-    .select("*")
-    .in("lead_id", uniqueLeadIds)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  const events = new Map<string, LeadEvent>();
-  for (const event of data ?? []) {
-    if (event.lead_id && !events.has(event.lead_id)) {
-      events.set(event.lead_id, event);
-    }
+  const token = await getAccessToken();
+  if (!token) {
+    return { ok: false as const, error: "Authentication required. Sign in before loading leads." };
   }
 
-  return events;
-}
+  const method = options.method ?? "GET";
 
-async function getLatestImportRun() {
-  const { data, error } = await supabase
-    .from("scb_import_runs")
-    .select("*")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  try {
+    const response = await fetch(`${apiUrl.replace(/\/$/, "")}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      ...(method === "POST" && options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+    });
 
-  if (error) throw error;
-  return data;
+    const data = await response.json().catch(() => null) as T | { error?: string } | null;
+
+    if (!response.ok) {
+      return {
+        ok: false as const,
+        error: data && typeof data === "object" && "error" in data && data.error
+          ? String(data.error)
+          : `Could not load leads (${response.status}).`,
+      };
+    }
+
+    return { ok: true as const, data: data as T };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Could not load leads.",
+    };
+  }
 }
 
 export async function getLeads(): Promise<LeadsResult> {
-  if (!isSupabaseConfigured) {
+  if (!isKwstudioApiConfigured) {
     return {
       leads: [],
       latestImport: null,
       source: "unconfigured",
-      error: "Supabase is not configured.",
+      error: "API not configured. Set VITE_KWSTUDIO_API_URL.",
     };
   }
 
-  try {
-    const { data, error } = await supabase
-      .from("leads")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const result = await requestLeadsApi<LeadsApiResponse>("/leads", { method: "GET" });
 
-    if (error) throw error;
-
-    const leads = data ?? [];
-    const companyIds = leads.map((lead) => lead.company_id).filter((id): id is string => Boolean(id));
-    const leadIds = leads.map((lead) => lead.id);
-
-    const [companiesResult, auditsResult, eventsResult, latestImportResult] = await Promise.allSettled([
-      getCompaniesById(companyIds),
-      getLatestAuditsByLeadId(leadIds),
-      getLatestEventsByLeadId(leadIds),
-      getLatestImportRun(),
-    ]);
-
-    const companies = companiesResult.status === "fulfilled" ? companiesResult.value : new Map<string, Company>();
-    const audits = auditsResult.status === "fulfilled" ? auditsResult.value : new Map<string, WebsiteAudit>();
-    const events = eventsResult.status === "fulfilled" ? eventsResult.value : new Map<string, LeadEvent>();
-    const latestImport = latestImportResult.status === "fulfilled" ? latestImportResult.value : null;
-    const relatedError = [companiesResult, auditsResult, eventsResult, latestImportResult].some((result) => result.status === "rejected")
-      ? "Lead records loaded, but some related metadata could not be loaded."
-      : undefined;
-
-    return {
-      leads: leads.map((lead) => ({
-        ...lead,
-        company: lead.company_id ? companies.get(lead.company_id) ?? null : null,
-        latestAudit: audits.get(lead.id) ?? null,
-        latestEvent: events.get(lead.id) ?? null,
-      })),
-      latestImport,
-      source: "supabase",
-      error: relatedError,
-    };
-  } catch (error) {
-    console.error("Could not load Supabase leads.", error);
+  if (!result.ok) {
     return {
       leads: [],
       latestImport: null,
       source: "error",
-      error: error instanceof Error ? error.message : "Could not load Supabase leads.",
+      error: result.error,
     };
   }
+
+  return {
+    leads: (result.data.leads ?? []).map(mapApiLead),
+    latestImport: result.data.latestImport ?? null,
+    source: "api",
+  };
 }
 
 export async function getLeadById(id: string) {
@@ -175,61 +150,42 @@ export async function getLeadById(id: string) {
 }
 
 export async function updateLeadStatus(id: string, status: LeadStage | string) {
-  if (!isSupabaseConfigured) {
-    return { ok: false, message: "Supabase is not configured." };
+  if (!isKwstudioApiConfigured) {
+    return { ok: false, message: "API not configured. Set VITE_KWSTUDIO_API_URL." };
   }
 
-  const { error } = await supabase
-    .from("leads")
-    .update({ status: leadStageToStatus(status) })
-    .eq("id", id);
+  const result = await requestLeadsApi<{ ok: boolean; lead: Lead }>(`/leads/${id}/status`, {
+    method: "POST",
+    body: { status: leadStageToStatus(status) },
+  });
 
-  return error ? { ok: false, message: error.message } : { ok: true, message: "Lead status updated." };
+  return result.ok
+    ? { ok: true, message: "Lead status updated." }
+    : { ok: false, message: result.error ?? "Could not update lead status." };
 }
 
 export async function updateLeadPriority(id: string, priority: LeadPriority | string) {
-  if (!isSupabaseConfigured) {
-    return { ok: false, message: "Supabase is not configured." };
+  if (!isKwstudioApiConfigured) {
+    return { ok: false, message: "API not configured. Set VITE_KWSTUDIO_API_URL." };
   }
 
-  const { error } = await supabase
-    .from("leads")
-    .update({ priority: priority.toLowerCase() })
-    .eq("id", id);
+  const result = await requestLeadsApi<{ ok: boolean; lead: Lead }>(`/leads/${id}/status`, {
+    method: "POST",
+    body: { priority: priority.toLowerCase() },
+  });
 
-  return error ? { ok: false, message: error.message } : { ok: true, message: "Lead priority updated." };
+  return result.ok
+    ? { ok: true, message: "Lead priority updated." }
+    : { ok: false, message: result.error ?? "Could not update lead priority." };
 }
 
 export async function getLatestAuditForLead(leadId: string) {
-  if (!isSupabaseConfigured) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from("website_audits")
-    .select("*")
-    .eq("lead_id", leadId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
+  const lead = await getLeadById(leadId);
+  return lead?.latestAudit ?? null;
 }
 
-export async function getLeadEvents(leadId: string) {
-  if (!isSupabaseConfigured) {
-    return [];
-  }
-
-  const { data, error } = await supabase
-    .from("lead_events")
-    .select("*")
-    .eq("lead_id", leadId)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-  return data ?? [];
+export async function getLeadEvents(_leadId: string) {
+  return [] as LeadEvent[];
 }
 
 export function mapLeadStage(status: string): LeadStage {

@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { AlertCircle, ArrowRight, CheckCircle2, Download, FileCheck2, Plus, ReceiptText, Upload } from "lucide-react";
 import { AdminTabs as FinanceTabs } from "~/components/admin/AdminTabs";
 import { AdminShell } from "~/components/admin/AdminShell";
+import { AdminComingSoon } from "~/components/admin/AdminComingSoon";
 import { AdminTable, type AdminTableColumn } from "~/components/admin/AdminTable";
 import { EmptyState } from "~/components/admin/EmptyState";
 import {
@@ -337,9 +338,9 @@ export function DashboardPage() {
   }));
   const leadsDetail = isLoadingLeads
     ? "Loading live leads"
-    : leadResult.source === "supabase"
-      ? "Live from Supabase"
-      : leadResult.error ?? "Supabase not configured";
+    : leadResult.source === "api"
+      ? "Live from API"
+      : leadResult.error ?? "API not configured";
 
   return (
     <AdminShell title="Dashboard" description="A focused overview of KWStudio leads, active work and operational priorities.">
@@ -347,17 +348,23 @@ export function DashboardPage() {
         <div className="col-span-12 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: "Leads", value: isLoadingLeads ? "..." : String(dashboardLeads.length), detail: leadsDetail, href: "/admin/leads" },
-            { label: "Active projects", value: "7", detail: "3 launches scheduled", href: "/admin/projects" },
-            { label: "Website score", value: "88", detail: "Average across reports", href: "/admin/websites" },
-            { label: "Outstanding", value: "50k SEK", detail: "1 overdue invoice", href: "/admin/finance" },
+            { label: "Active projects", value: "—", detail: "Connect projects API", href: "/admin/projects" },
+            { label: "Website score", value: "—", detail: "No audit data yet", href: "/admin/websites" },
+            { label: "Outstanding", value: "—", detail: "Finance invoices not connected", href: "/admin/finance" },
           ].map((metric) => <MiniMetricCard key={metric.label} {...metric} />)}
         </div>
 
         <div className="col-span-12 xl:col-span-7">
-          <Timeline title="Today's tasks" items={dashboardTasks} />
+          <AdminComingSoon
+            title="Tasks"
+            description="Task management will appear here once the delivery workflow API is connected to the dashboard."
+          />
         </div>
         <div className="col-span-12 xl:col-span-5">
-          <Timeline title="Upcoming meetings" items={upcomingMeetings} />
+          <AdminComingSoon
+            title="Meetings"
+            description="Calendar and meeting reminders are not connected yet."
+          />
         </div>
 
         <div className="col-span-12 xl:col-span-5">
@@ -387,49 +394,25 @@ export function DashboardPage() {
           </Panel>
         </div>
         <div className="col-span-12 xl:col-span-7">
-          <Panel title="Recent activity">
-            <div className="space-y-3">
-              {[
-                ...followUps.slice(0, 2).map((item) => ({ id: item.id, title: item.title, detail: `${item.person} - ${item.due}`, href: "/admin/follow-ups", status: item.status })),
-                ...analyses.slice(0, 2).map((analysis) => ({ id: analysis.id, title: analysis.url, detail: `${analysis.findings} findings - score ${analysis.score}`, href: "/admin/analyzer", status: "Review" as AdminStatus })),
-              ].map((item) => (
-                <Link key={item.id} to={item.href} className="block rounded-lg border border-gray-100 px-4 py-3 transition hover:border-[#2E75BD]">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="truncate text-sm font-medium text-gray-700">{item.title}</span>
-                    <StatusBadge status={item.status} />
-                  </div>
-                  <p className="mt-1 truncate text-xs text-gray-500">{item.detail}</p>
-                </Link>
-              ))}
-            </div>
-          </Panel>
+          <AdminComingSoon
+            title="Recent activity"
+            description="Cross-module activity will appear here once CRM and project events are wired to the dashboard."
+          />
         </div>
 
         <div className="col-span-12 xl:col-span-8">
-          <Panel title="Active projects">
-            <div className="grid gap-4 md:grid-cols-3">
-              {adminProjects.slice(0, 3).map((project) => (
-                <Link key={project.id} to="/admin/projects" className="rounded-xl border border-gray-100 p-4 transition hover:border-[#2E75BD]">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-800">{project.name}</h3>
-                      <p className="mt-1 text-sm text-gray-500">{project.client}</p>
-                    </div>
-                    <StatusBadge status={project.status} />
-                  </div>
-                  <div className="mt-4"><Progress value={project.progress} /></div>
-                  <p className="mt-2 text-xs text-gray-500">Deadline {project.deadline}</p>
-                </Link>
-              ))}
-            </div>
-          </Panel>
+          <AdminComingSoon
+            title="Active projects"
+            description="Project cards will load from the portal projects API. Use Projects in the sidebar for the current list view."
+            action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/projects">Open projects</Link>}
+          />
         </div>
         <div className="col-span-12 xl:col-span-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">Recent leads</h2>
             <Link className="text-sm font-medium text-[#2E75BD]" to="/admin/leads">View all</Link>
           </div>
-          <AdminTable columns={leadColumns.slice(0, 4)} rows={recentLeadRows} getRowKey={(lead) => lead.id} emptyMessage="No Supabase leads found." />
+          <AdminTable columns={leadColumns.slice(0, 4)} rows={recentLeadRows} getRowKey={(lead) => lead.id} emptyMessage="No leads found." />
         </div>
         <div className="col-span-12 xl:col-span-4">
           <QuickActions actions={quickActions} />
@@ -1374,8 +1357,8 @@ export function LeadsPage() {
   const metrics = useMemo(() => buildLeadMetrics(leads), [leads]);
   const visibleMetrics = isLoading
     ? [
-        { label: "Total leads", value: "...", detail: "Loading from Supabase", href: "/admin/leads" },
-        { label: "New leads", value: "...", detail: "Loading from Supabase", href: "/admin/leads" },
+        { label: "Total leads", value: "...", detail: "Loading from API", href: "/admin/leads" },
+        { label: "New leads", value: "...", detail: "Loading from API", href: "/admin/leads" },
       ]
     : metrics;
   useEffect(() => {
@@ -1562,13 +1545,13 @@ export function LeadsPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-gray-800">
-              {isLoading ? "Loading leads" : leadResult.source === "supabase" ? "Connected to Supabase" : "Supabase not connected"}
+              {isLoading ? "Loading leads" : leadResult.source === "api" ? "Connected to API" : "API not connected"}
             </p>
             <p className="mt-1 text-sm text-gray-500">
-              {leadResult.error ?? (isSupabaseConfigured ? "Lead data is read through the Supabase client." : "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to read live leads.")}
+              {leadResult.error ?? (isKwstudioApiConfigured ? "Lead data is loaded through the KWStudio API Worker." : "Set VITE_KWSTUDIO_API_URL to read live leads.")}
             </p>
           </div>
-          <StatusBadge status={leadResult.source === "supabase" ? "Live" : "Draft"} />
+          <StatusBadge status={leadResult.source === "api" ? "Live" : "Draft"} />
         </div>
       </div>
 
@@ -1672,16 +1655,10 @@ export function LeadsPage() {
       ) : null}
 
       {activeTab === "proposals" ? (
-        <AdminTable
-          columns={[
-            { key: "proposal", header: "Proposal", render: (proposal: Proposal) => <strong className="text-gray-800">{proposal.title}</strong> },
-            { key: "client", header: "Client", render: (proposal: Proposal) => proposal.client },
-            { key: "value", header: "Value", render: (proposal: Proposal) => proposal.value },
-            { key: "expires", header: "Expires", render: (proposal: Proposal) => proposal.expiry },
-            { key: "status", header: "Status", render: (proposal: Proposal) => <StatusBadge status={proposal.status} /> },
-          ]}
-          rows={proposals}
-          getRowKey={(proposal) => proposal.id}
+        <AdminComingSoon
+          title="Proposal tracking"
+          description="Proposal workflow is not connected yet. Use Documents to generate and send client proposals."
+          action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/documents">Open documents</Link>}
         />
       ) : null}
     </AdminShell>
@@ -1689,150 +1666,114 @@ export function LeadsPage() {
 }
 
 export function PipelinePage() {
-  const stages = ["New", "Qualified", "Proposal", "Won"];
+  const [leadResult, setLeadResult] = useState<LeadsResult>(defaultLeadResult);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    getLeads()
+      .then((result) => {
+        if (isMounted) setLeadResult(result);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const stages = ["New", "Qualified", "Proposal", "Won"] as const;
+
   return (
     <AdminShell title="Pipeline" description="A kanban view of live sales opportunities and next steps.">
-      <KanbanBoard
-        columns={stages.map((stage) => ({
-          id: stage,
-          title: stage,
-          items: pipelineDeals.filter((deal) => deal.stage === stage).map((deal) => (
-            <article key={deal.id} className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
-              <h3 className="truncate text-sm font-semibold text-gray-800">{deal.company}</h3>
-              <p className="mt-1 truncate text-sm text-gray-500">{deal.service}</p>
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                <span className="font-semibold text-gray-800">{deal.value}</span>
-                <span className="truncate text-gray-500">{deal.nextAction}</span>
-              </div>
-            </article>
-          )),
-        }))}
-      />
+      {isLoading ? (
+        <FinanceLoadingMessage message="Loading pipeline from API…" />
+      ) : leadResult.leads.length === 0 ? (
+        <AdminComingSoon
+          title="No pipeline deals yet"
+          description={leadResult.error ?? "Import or discover leads to populate the pipeline."}
+          action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/leads">Open leads</Link>}
+        />
+      ) : (
+        <KanbanBoard
+          columns={stages.map((stage) => ({
+            id: stage,
+            title: stage,
+            items: leadResult.leads
+              .filter((lead) => mapLeadStage(lead.status) === stage)
+              .map((lead) => (
+                <article key={lead.id} className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+                  <h3 className="truncate text-sm font-semibold text-gray-800">{leadCompanyName(lead)}</h3>
+                  <p className="mt-1 truncate text-sm text-gray-500">{leadServiceLabel(lead)}</p>
+                  <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                    <span className="font-semibold text-gray-800">{formatCurrency(lead.estimated_value)}</span>
+                    <span className="truncate text-gray-500">{lead.next_action ?? "Review opportunity"}</span>
+                  </div>
+                </article>
+              )),
+          }))}
+        />
+      )}
     </AdminShell>
   );
 }
 
 export function ProposalsPage() {
-  const columns: Array<AdminTableColumn<Proposal>> = [
-    { key: "proposal", header: "Proposal", render: (proposal) => <strong className="text-gray-800">{proposal.title}</strong> },
-    { key: "client", header: "Client", render: (proposal) => proposal.client },
-    { key: "value", header: "Value", render: (proposal) => proposal.value },
-    { key: "expires", header: "Expires", render: (proposal) => proposal.expiry },
-    { key: "status", header: "Status", render: (proposal) => <StatusBadge status={proposal.status} /> },
-  ];
-  return <AdminShell title="Proposals" description="Track proposal value, expiry dates and approval status."><AdminTable columns={columns} rows={proposals} getRowKey={(proposal) => proposal.id} /></AdminShell>;
+  return (
+    <AdminShell title="Proposals" description="Track proposal value, expiry dates and approval status.">
+      <AdminComingSoon
+        title="Proposal tracking"
+        description="Proposal workflow is not connected yet. Use Documents to generate and send client proposals."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/documents">Open documents</Link>}
+      />
+    </AdminShell>
+  );
 }
 
 export function FollowUpsPage() {
   return (
     <AdminShell title="Follow-ups" description="A focused list of reminders, calls and next actions.">
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <TaskList items={followUps.map((item) => ({ id: item.id, title: item.title, meta: `${item.due} - ${item.channel}`, description: `${item.person}, ${item.company}`, status: item.status }))} />
-        </div>
-        <Panel title="Priority queue">
-          <p className="text-sm leading-6 text-gray-500">Start with overdue or scheduled follow-ups, then confirm proposal feedback before the next business day.</p>
-        </Panel>
-      </div>
+      <AdminComingSoon
+        title="Follow-up queue"
+        description="Follow-up reminders will appear here once lead next-action scheduling is connected."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/leads">Open leads</Link>}
+      />
     </AdminShell>
   );
 }
 
 export function ProjectsPage() {
-  const columns: Array<AdminTableColumn<AdminProject>> = [
-    { key: "project", header: "Project", render: (project) => <strong className="text-gray-800">{project.name}</strong> },
-    { key: "client", header: "Client", render: (project) => project.client },
-    { key: "deadline", header: "Deadline", render: (project) => project.deadline },
-    { key: "progress", header: "Progress", render: (project) => <div className="min-w-32"><Progress value={project.progress} /></div> },
-    { key: "status", header: "Status", render: (project) => <StatusBadge status={project.status} /> },
-  ];
-
-  const nextDeadline = adminProjects[0];
-
   return (
     <AdminShell title="Projects" description="Track active builds, delivery health and client deadlines.">
-      <MetricGrid metrics={projectStatusMetrics} />
-      <WorkflowCards
-        cards={[
-          { title: "Projects", description: "Monitor active builds, status and delivery progress.", href: "/admin/projects" },
-          { title: "Tasks", description: "Organize production work by owner and status.", href: "/admin/tasks" },
-          { title: "Files", description: "Find client assets, planning documents and handoff files.", href: "/admin/files" },
-        ]}
+      <AdminComingSoon
+        title="Project dashboard"
+        description="Use the linked project detail pages for workflow management. A consolidated project metrics view is coming soon."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/projects/new">Create project</Link>}
       />
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
-        {adminProjects.map((project) => (
-          <Panel key={project.id} title={project.name}>
-            <p className="text-sm text-gray-500">{project.scope}</p>
-            <div className="mt-4"><Progress value={project.progress} /></div>
-            <p className="mt-2 text-xs text-gray-500">Deadline {project.deadline}</p>
-          </Panel>
-        ))}
-      </div>
-      <div className="mb-6 grid gap-6 xl:grid-cols-3">
-        <Panel title="Next deadline">
-          <h3 className="text-sm font-semibold text-gray-800">{nextDeadline.name}</h3>
-          <p className="mt-2 text-sm text-gray-500">{nextDeadline.client} - {nextDeadline.deadline}</p>
-        </Panel>
-        <Panel title="Task summary">
-          <div className="grid gap-3">
-            {["To do", "In progress", "Review", "Done"].map((status) => (
-              <div key={status} className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3">
-                <span className="text-sm text-gray-600">{status}</span>
-                <strong className="text-sm text-gray-900">{adminTasks.filter((task) => task.status === status).length}</strong>
-              </div>
-            ))}
-          </div>
-        </Panel>
-        <Timeline title="Project activity" items={projectTimeline} />
-      </div>
-      <AdminTable columns={columns} rows={adminProjects} getRowKey={(project) => project.id} />
     </AdminShell>
   );
 }
 
 export function TasksPage() {
-  const statuses = ["To do", "In progress", "Review", "Done"];
   return (
     <AdminShell title="Tasks" description="Production tasks grouped by current delivery state.">
-      <KanbanBoard columns={statuses.map((status) => ({ id: status, title: status, items: adminTasks.filter((task) => task.status === status).map((task) => <article key={task.id} className="rounded-xl border border-gray-100 p-4"><h3 className="text-sm font-semibold text-gray-800">{task.title}</h3><p className="mt-1 text-sm text-gray-500">{task.project}</p><p className="mt-3 text-xs font-medium text-gray-400">{task.owner} - {task.due}</p></article>) }))} />
+      <AdminComingSoon
+        title="Task board"
+        description="Production task management is not connected yet. Track delivery work from individual project pages."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/projects">Open projects</Link>}
+      />
     </AdminShell>
   );
 }
 
 export function ClientsPage() {
-  const [query, setQuery] = useState("");
-  const rows = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return clients.filter((client) => [client.name, client.contact, client.email, client.project].join(" ").toLowerCase().includes(normalized));
-  }, [query]);
-
-  const columns: Array<AdminTableColumn<Client>> = [
-    { key: "client", header: "Client", render: (client) => <strong className="text-gray-800">{client.name}</strong> },
-    { key: "contact", header: "Contact", render: (client) => client.contact },
-    { key: "project", header: "Project", render: (client) => client.project },
-    { key: "last", header: "Last contact", render: (client) => client.lastContact },
-    { key: "status", header: "Status", render: (client) => <StatusBadge status={client.status} /> },
-  ];
-
   return (
     <AdminShell title="Clients" description="A compact CRM view for active relationships and project context.">
-      <MetricGrid metrics={clientHealthMetrics} />
-      <div className="mb-6 grid gap-4 xl:grid-cols-3">
-        {featuredClients.map((client) => (
-          <Panel key={client.id} title={client.name}>
-            <p className="text-sm text-gray-500">{client.contact} - {client.health}</p>
-            <dl className="mt-4 grid gap-3 text-sm">
-              <div className="flex justify-between gap-3"><dt className="text-gray-500">Project</dt><dd className="font-medium text-gray-800">{client.activeProject}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-gray-500">Invoice</dt><dd className="font-medium text-gray-800">{client.latestInvoice}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-gray-500">Last contact</dt><dd className="font-medium text-gray-800">{client.lastContact}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-gray-500">Notes</dt><dd className="font-medium text-gray-800">{client.notes}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-gray-500">Value</dt><dd className="font-medium text-gray-800">{client.lifetimeValue}</dd></div>
-            </dl>
-          </Panel>
-        ))}
-      </div>
-      <FilterBar search={query} onSearchChange={setQuery} searchPlaceholder="Search clients, contacts or projects" />
-      <AdminTable columns={columns} rows={rows} getRowKey={(client) => client.id} />
+      <AdminComingSoon
+        title="CRM overview"
+        description="Client relationship metrics are not connected yet. Use portal access below to manage client accounts."
+      />
       <div className="mt-6">
         <PortalAccessPanel />
       </div>
@@ -1879,14 +1820,15 @@ export function WebsitesPage() {
 }
 
 export function ReportsPage() {
-  const columns: Array<AdminTableColumn<WebsiteReport>> = [
-    { key: "client", header: "Client", render: (report) => <strong className="text-gray-800">{report.client}</strong> },
-    { key: "report", header: "Report", render: (report) => report.name },
-    { key: "score", header: "Score", render: (report) => `${report.score}/100` },
-    { key: "date", header: "Date", render: (report) => report.date },
-    { key: "status", header: "Status", render: (report) => <StatusBadge status={report.status} /> },
-  ];
-  return <AdminShell title="Website Reports" description="Client report history with scores and delivery status."><AdminTable columns={columns} rows={websiteReports} getRowKey={(report) => report.id} /></AdminShell>;
+  return (
+    <AdminShell title="Website Reports" description="Client report history with scores and delivery status.">
+      <AdminComingSoon
+        title="Website reports"
+        description="Report history is not connected yet. Use Website Analyzer and lead audits for website scoring."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/analyzer">Open analyzer</Link>}
+      />
+    </AdminShell>
+  );
 }
 
 export function AnalyzerPage() {
@@ -1918,35 +1860,48 @@ export function SeoPage() {
 export function UptimePage() {
   return (
     <AdminShell title="Uptime" description="Monitor site availability and response time.">
-      <div className="grid gap-4 md:grid-cols-3">
-        {uptimeMonitors.map((monitor) => <Panel key={monitor.id} title={monitor.site}><p className="text-sm text-gray-500">{monitor.status}</p><p className="mt-4 text-2xl font-bold text-gray-800">{monitor.uptime}</p><p className="mt-1 text-xs text-gray-400">{monitor.response} - {monitor.incident}</p></Panel>)}
-      </div>
+      <AdminComingSoon
+        title="Uptime monitoring"
+        description="Configure external uptime checks (UptimeRobot or Better Stack). See MONITORING.md for setup instructions."
+      />
     </AdminShell>
   );
 }
 
 export function InvoicesPage() {
-  return <AdminShell title="Invoices" description="Track paid, unpaid and overdue invoices."><AdminTable columns={invoiceColumns} rows={invoices} getRowKey={(invoice) => invoice.id} /></AdminShell>;
+  return (
+    <AdminShell title="Invoices" description="Track paid, unpaid and overdue invoices.">
+      <AdminComingSoon
+        title="Invoice tracking"
+        description="Standalone invoice management is not connected yet. Use Finance for transaction-based bookkeeping."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/finance">Open finance</Link>}
+      />
+    </AdminShell>
+  );
 }
 
 export function PaymentsPage() {
-  const columns: Array<AdminTableColumn<Payment>> = [
-    { key: "client", header: "Client", render: (payment) => <strong className="text-gray-800">{payment.client}</strong> },
-    { key: "amount", header: "Amount", render: (payment) => payment.amount },
-    { key: "method", header: "Method", render: (payment) => payment.method },
-    { key: "date", header: "Date", render: (payment) => payment.date },
-  ];
-  return <AdminShell title="Payments" description="Recent payment activity and collection channels."><AdminTable columns={columns} rows={payments} getRowKey={(payment) => payment.id} /></AdminShell>;
+  return (
+    <AdminShell title="Payments" description="Recent payment activity and collection channels.">
+      <AdminComingSoon
+        title="Payment activity"
+        description="Payment tracking is not connected yet. Imported bank transactions are available in Finance."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/finance">Open finance</Link>}
+      />
+    </AdminShell>
+  );
 }
 
 export function ExpensesPage() {
-  const columns: Array<AdminTableColumn<Expense>> = [
-    { key: "vendor", header: "Vendor", render: (expense) => <strong className="text-gray-800">{expense.vendor}</strong> },
-    { key: "category", header: "Category", render: (expense) => expense.category },
-    { key: "amount", header: "Amount", render: (expense) => expense.amount },
-    { key: "date", header: "Date", render: (expense) => expense.date },
-  ];
-  return <AdminShell title="Expenses" description="A simple expense tracker grouped by business category."><AdminTable columns={columns} rows={expenses} getRowKey={(expense) => expense.id} /></AdminShell>;
+  return (
+    <AdminShell title="Expenses" description="A simple expense tracker grouped by business category.">
+      <AdminComingSoon
+        title="Expense tracker"
+        description="Standalone expense pages are not connected yet. Use Finance → Owner expenses or Transactions."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/finance">Open finance</Link>}
+      />
+    </AdminShell>
+  );
 }
 
 function FinanceKpiGrid({ metrics }: { metrics: Array<{ label: string; value: string; detail: string }> }) {
@@ -2117,15 +2072,9 @@ function OverviewTab({
   const [, setSearchParams] = useSearchParams();
   const openTab = (tabId: string) => setSearchParams({ tab: tabId });
   const latestImport = backendImports[0];
-  const reviewCount = backendTransactions.length > 0
-    ? backendTransactions.filter((transaction) => transaction.status === "review").length
-    : 3;
-  const missingReceiptCount = backendTransactions.length > 0
-    ? backendTransactions.filter((transaction) => transaction.receiptStatus === "missing").length
-    : 2;
-  const readyCount = backendTransactions.length > 0
-    ? backendTransactions.filter((transaction) => transaction.status === "ready").length
-    : 39;
+  const reviewCount = backendTransactions.filter((transaction) => transaction.status === "review").length;
+  const missingReceiptCount = backendTransactions.filter((transaction) => transaction.receiptStatus === "missing").length;
+  const readyCount = backendTransactions.filter((transaction) => transaction.status === "ready").length;
   const dynamicActions = financeActions.map((item) => {
     if (item.id === "act-001") return { ...item, title: `${reviewCount} transactions need review` };
     if (item.id === "act-002") return { ...item, title: `${missingReceiptCount} receipts missing` };
@@ -2139,8 +2088,8 @@ function OverviewTab({
         { label: "Need review", value: String(latestImport.review_rows), detail: "Awaiting approval" },
       ]
     : importStatus;
-  const categorizedRows = latestImport?.categorized_rows ?? readyCount;
-  const totalRows = latestImport?.total_rows ?? 42;
+  const categorizedRows = latestImport?.categorized_rows ?? 0;
+  const totalRows = latestImport?.total_rows ?? 0;
   const categorizedProgress = totalRows > 0 ? Math.round((categorizedRows / totalRows) * 100) : 0;
 
   return (
@@ -2271,13 +2220,21 @@ function OverviewTab({
             <div className="h-2 rounded-full bg-gray-100">
               <div className="h-2 rounded-full bg-[#2E75BD]" style={{ width: `${categorizedProgress}%` }} />
             </div>
-            <p className="mt-3 text-xs font-medium text-gray-500">Backend-ready demo metric.</p>
+            <p className="mt-3 text-xs font-medium text-gray-500">
+              {totalRows > 0 ? "Calculated from latest CSV import." : "Import a CSV to see categorization progress."}
+            </p>
           </div>
         </FinancePanel>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <FinancePanel title="Cash flow" description="Demo movement for the current month.">
+        <FinancePanel title="Cash flow" description="Monthly movement from imported transactions.">
+          {backendTransactions.length === 0 ? (
+            <AdminComingSoon
+              title="No transaction data"
+              description="Import a Revolut CSV to see cash flow for the current period."
+            />
+          ) : (
           <div className="space-y-3">
             {cashFlow.map((item) => (
               <div key={item.label} className="rounded-xl border border-gray-100 p-4">
@@ -2294,9 +2251,16 @@ function OverviewTab({
               </div>
             ))}
           </div>
+          )}
         </FinancePanel>
 
-        <FinancePanel title="Backend insights" description="Calculated demo metrics from transaction history and latest import.">
+        <FinancePanel title="Backend insights" description="Insights from imported transaction history.">
+          {backendTransactions.length === 0 ? (
+            <AdminComingSoon
+              title="No insights yet"
+              description="Import transactions to generate bookkeeping insights for the current period."
+            />
+          ) : (
           <div className="space-y-3">
             {backendInsights.map((insight) => (
               <div key={insight} className="flex gap-3 rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-700">
@@ -2305,29 +2269,30 @@ function OverviewTab({
               </div>
             ))}
           </div>
+          )}
         </FinancePanel>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
         <FinancePanel title="Outstanding invoices">
-          <div className="space-y-3">
-            {outstandingInvoices.map((invoice) => (
-              <div key={invoice.id} className="flex flex-col gap-2 rounded-xl border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800">{invoice.client}</h3>
-                  <p className="mt-1 text-sm text-gray-500">{invoice.amount} - {invoice.due}</p>
-                </div>
-                <StatusBadge status={invoice.status} />
-              </div>
-            ))}
-          </div>
+          <AdminComingSoon
+            title="Invoice tracking not connected"
+            description="Client invoice tracking is not available in KWStudio yet. Use the Invoices tab when the billing API is connected."
+          />
           <button className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#2E75BD]" type="button" onClick={() => openTab("invoices")}>
             View invoices
             <ArrowRight className="size-4" aria-hidden="true" />
           </button>
         </FinancePanel>
         <div className="xl:col-span-2">
-          <Timeline title="Recent finance activity" items={activityItems.map((item) => ({ ...item, status: "Done" }))} />
+          {backendTransactions.length === 0 ? (
+            <AdminComingSoon
+              title="No finance activity"
+              description="Recent finance activity will appear after CSV imports and journal posting."
+            />
+          ) : (
+            <Timeline title="Recent finance activity" items={activityItems.map((item) => ({ ...item, status: "Done" }))} />
+          )}
         </div>
       </div>
     </div>
@@ -2533,64 +2498,23 @@ function TransactionsTab({
 }
 
 function InvoicesFinanceTab() {
-  const columns: Array<AdminTableColumn<FinanceInvoice>> = [
-    { key: "invoice", header: "Invoice", render: (invoice) => <strong className="text-gray-800">{invoice.id}</strong> },
-    { key: "client", header: "Client", render: (invoice) => invoice.client },
-    { key: "project", header: "Project", render: (invoice) => invoice.project },
-    { key: "amount", header: "Amount", render: (invoice) => invoice.amount },
-    { key: "vat", header: "VAT", render: (invoice) => invoice.vat },
-    { key: "due", header: "Due date", render: (invoice) => invoice.dueDate },
-    { key: "status", header: "Status", render: (invoice) => <StatusBadge status={invoice.status} /> },
-    { key: "matched", header: "Matched payment", render: (invoice) => invoice.matchedPayment },
-  ];
-
   return (
     <div className="space-y-6">
-      <FinanceKpiGrid metrics={financeKpiGroups.invoices} />
-      <AdminTable columns={columns} rows={financeInvoices} getRowKey={(invoice) => invoice.id} />
-      <FinancePanel title="Manual Revolut workflow">
-        <div className="grid gap-3 md:grid-cols-4">
-          {["Create invoice in Revolut Pro", "Register invoice here", "Mark as paid when payment arrives", "Match with CSV transaction at month end"].map((item, index) => (
-            <div key={item} className="rounded-xl border border-gray-100 p-4">
-              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[#2E75BD]">Step {index + 1}</span>
-              <p className="mt-2 text-sm font-medium leading-6 text-gray-700">{item}</p>
-            </div>
-          ))}
-        </div>
-      </FinancePanel>
+      <AdminComingSoon
+        title="Client invoices"
+        description="Invoice creation and payment matching are not connected yet. Finance transactions and journal entries are available in other tabs."
+      />
     </div>
   );
 }
 
 function ExpensesFinanceTab() {
-  const columns: Array<AdminTableColumn<FinanceExpense>> = [
-    { key: "supplier", header: "Supplier", render: (expense) => <strong className="text-gray-800">{expense.supplier}</strong> },
-    { key: "date", header: "Date", render: (expense) => expense.date },
-    { key: "amount", header: "Amount", render: (expense) => expense.amount },
-    { key: "category", header: "Category", render: (expense) => expense.category },
-    { key: "bas", header: "BAS account", render: (expense) => expense.basAccount },
-    { key: "vat", header: "VAT", render: (expense) => expense.vat },
-    { key: "receipt", header: "Receipt", render: (expense) => expense.receipt },
-    { key: "status", header: "Status", render: (expense) => <StatusBadge status={expense.status} /> },
-  ];
-
   return (
     <div className="space-y-6">
-      <FinanceKpiGrid metrics={financeKpiGroups.expenses} />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {supplierRules.map((rule) => (
-          <FinancePanel key={rule.supplier} title={rule.supplier}>
-            <FinanceDefinitionList
-              rows={[
-                { label: "Category", value: rule.category },
-                { label: "BAS account", value: rule.account },
-                { label: "VAT", value: rule.vat },
-              ]}
-            />
-          </FinancePanel>
-        ))}
-      </div>
-      <AdminTable columns={columns} rows={financeExpenses} getRowKey={(expense) => expense.id} />
+      <AdminComingSoon
+        title="Expense register"
+        description="Standalone expense tracking is not connected yet. Use Transactions and Owner expenses for current bookkeeping workflows."
+      />
     </div>
   );
 }
@@ -3668,47 +3592,22 @@ function ReceiptsTab({
       {rows.length > 0 ? (
         <AdminTable columns={columns} rows={rows} getRowKey={(receipt) => receipt.id} />
       ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {financeReceipts.map((receipt) => (
-              <FinancePanel key={receipt.id} title={receipt.filename}>
-                <p className="text-sm text-gray-500">{receipt.supplier} - {receipt.amount}</p>
-                <div className="mt-4"><StatusBadge status={receipt.status} /></div>
-              </FinancePanel>
-            ))}
-          </div>
-          <p className="text-sm text-gray-500">Backend receipts are unavailable, so static demo receipts remain visible.</p>
-        </>
+        <AdminComingSoon
+          title="No receipts loaded"
+          description="Upload receipts or connect the receipts API to review matches here."
+        />
       )}
     </div>
   );
 }
 
 function BookkeepingTab() {
-  const columns: Array<AdminTableColumn<JournalEntry>> = [
-    { key: "verification", header: "Verification no.", render: (entry) => <strong className="text-gray-800">{entry.verificationNo}</strong> },
-    { key: "date", header: "Date", render: (entry) => entry.date },
-    { key: "description", header: "Description", render: (entry) => entry.description },
-    { key: "debit", header: "Debit account", render: (entry) => entry.debitAccount },
-    { key: "credit", header: "Credit account", render: (entry) => entry.creditAccount },
-    { key: "amount", header: "Amount", render: (entry) => entry.amount },
-    { key: "status", header: "Status", render: (entry) => <StatusBadge status={entry.status} /> },
-  ];
-
   return (
     <div className="space-y-6">
-      <FinanceKpiGrid metrics={financeKpiGroups.bookkeeping} />
-      <div className="grid gap-6 xl:grid-cols-[1fr_0.7fr]">
-        <TaskList items={bookkeepingChecklist} />
-        <FinancePanel title="BAS account suggestions">
-          <div className="space-y-2">
-            {basAccountSuggestions.map((account) => (
-              <div key={account} className="rounded-xl bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">{account}</div>
-            ))}
-          </div>
-        </FinancePanel>
-      </div>
-      <AdminTable columns={columns} rows={journalEntries} getRowKey={(entry) => entry.id} />
+      <AdminComingSoon
+        title="Journal register UI"
+        description="Use the API-backed journal endpoints for posting. A full journal table view is coming soon."
+      />
     </div>
   );
 }
@@ -5224,7 +5123,7 @@ export function FinancePage() {
       })
       .catch(() => {
         if (!isMounted) return;
-        setBackendLoadError("Could not load finance data from the API. Demo fallback may be shown where applicable.");
+        setBackendLoadError("Could not load finance data from the API.");
       })
       .finally(() => {
         if (isMounted) setIsLoadingBackendData(false);
@@ -5252,9 +5151,8 @@ export function FinancePage() {
       />
 
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-500 md:p-6">
-        <div className="grid gap-4 xl:grid-cols-4">
-          <p className="xl:col-span-2">{emptyStateCopy.demoOnly}</p>
-          <p>{emptyStateCopy.csv}</p>
+        <div className="grid gap-4 xl:grid-cols-3">
+          <p className="xl:col-span-2">{emptyStateCopy.csv}</p>
           <p>{emptyStateCopy.tax}</p>
         </div>
       </div>
@@ -5298,7 +5196,15 @@ export function FinancePage() {
 }
 
 export function BookkeepingPage() {
-  return <AdminShell title="Bookkeeping" description="Monthly admin checklist for documents, invoices and reconciliations."><TaskList items={bookkeepingTasks.map((task) => ({ id: task.id, title: task.title, meta: task.meta, description: task.detail, status: task.status }))} /></AdminShell>;
+  return (
+    <AdminShell title="Bookkeeping" description="Monthly admin checklist for documents, invoices and reconciliations.">
+      <AdminComingSoon
+        title="Bookkeeping checklist"
+        description="Monthly bookkeeping tasks are not connected yet. Use Finance for imports, journal posting, and VAT."
+        action={<Link className="text-sm font-semibold text-[#2E75BD]" to="/admin/finance">Open finance</Link>}
+      />
+    </AdminShell>
+  );
 }
 
 export function AiToolsPage() {

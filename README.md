@@ -1,87 +1,93 @@
-# Welcome to React Router!
+# KWStudio
 
-A modern, production-ready template for building full-stack React applications using React Router.
+KWStudio is a full-stack client portal and admin platform for a web design studio. It includes document generation, e-signing, client portal, finance/bookkeeping, leads, and project workflow.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+## Repositories
 
-## Features
+| Repo | Purpose |
+|------|---------|
+| **KWStudio** (this repo) | React Router frontend + Supabase migrations |
+| **KWStudio API Worker** | Express API (documents, finance, portal, leads, signing) |
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+## Local development
 
-## Getting Started
-
-### Installation
-
-Install the dependencies:
+### Frontend
 
 ```bash
 npm install
-```
-
-### Development
-
-Start the development server with HMR:
-
-```bash
+cp .env.example .env   # set VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_KWSTUDIO_API_URL
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+### API Worker
 
-## Building for Production
+```bash
+cd "../KWStudio API Worker"
+npm install
+cp .env.example .env   # set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, etc.
+npm run dev
+```
 
-Create a production build:
+## Production build
+
+### Frontend
 
 ```bash
 npm run build
+npm start   # serves build/server/index.js
 ```
 
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
+### API Worker
 
 ```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+npm run build   # compiles TypeScript to dist/
+npm start       # node dist/index.js
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
+Install Playwright on the API host for PDF generation:
 
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
+```bash
+npx playwright install chromium
 ```
 
-## Styling
+## Environment variables
 
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
+See [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) for the full list.
 
----
+Required frontend:
 
-Built with ❤️ using React Router.
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_KWSTUDIO_API_URL`
+
+Required API Worker:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `PORTAL_APP_BASE_URL`
+
+## Database migrations
+
+Apply in order via Supabase CLI or dashboard:
+
+```
+supabase/migrations/001_*.sql → … → 029_database_integrity.sql
+```
+
+See [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) section 2.
+
+## Documentation
+
+| Document | Contents |
+|----------|----------|
+| [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) | Pre-launch checklist |
+| [SECURITY.md](./SECURITY.md) | Security model |
+| [BACKUP_AND_RECOVERY.md](./BACKUP_AND_RECOVERY.md) | Backup and restore |
+| [MONITORING.md](./MONITORING.md) | Monitoring recommendations |
+
+## CI
+
+GitHub Actions runs on every push/PR:
+
+- Frontend: `npm ci`, typecheck, build
+- API Worker (separate repo): typecheck, regression tests, build

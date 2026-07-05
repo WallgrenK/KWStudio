@@ -43,7 +43,8 @@ Client-supplied IDs are validated as UUIDs before use. Cross-tenant access retur
 
 ## Admin security
 
-- Admin shell requires authenticated session; client profiles redirect to portal
+- Admin shell requires authenticated session **and** `user_profiles.role = 'admin'`
+- First admin bootstrap available only when no admin profiles exist
 - Finance, receipts, leads, and SCB require admin profile (not merely authenticated JWT)
 - Service role key never exposed to frontend
 
@@ -107,7 +108,8 @@ Returns `429` with `{ error, code: "rate_limited" }`.
 ## RLS model
 
 - **Backend writes:** API Worker uses service role (bypasses RLS)
-- **Frontend reads:** Limited to `user_profiles` (own row) and `portal_users` (own row)
+- **Frontend reads:** Limited to `user_profiles` (own row), `portal_users` (own row), `enquiries` (insert only), and public `projects` (published portfolio)
+- **Leads/finance:** Frontend must use API Worker only — no direct Supabase reads
 - **Public insert:** `enquiries` only
 - **Notifications:** Authenticated users may read own notifications only
 - **Sensitive tables:** RLS enabled, no anon/authenticated policies (service role only)

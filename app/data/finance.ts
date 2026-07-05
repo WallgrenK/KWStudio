@@ -605,9 +605,9 @@ export const systemSuggestion = {
 };
 
 export const emptyStateCopy = {
-  demoOnly: "Frontend demo only. No backend, Supabase wiring or real bookkeeping submission is connected.",
+  demoOnly: "Connect VITE_KWSTUDIO_API_URL to load live finance data from the API Worker.",
   csv: "Revolut Pro has no API/webhooks in this setup, so Finance is built around monthly CSV imports.",
-  tax: "This is not legal, tax or accounting advice. All figures and BAS accounts are demo support data.",
+  tax: "This is not legal, tax or accounting advice. Verify all figures before submission.",
 };
 
 export const financeHeroNotes = [

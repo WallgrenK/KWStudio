@@ -33,14 +33,14 @@ Use this checklist before onboarding real customers. Complete items in order.
 |----------|-------------|
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
-| `VITE_API_BASE_URL` | API Worker base URL |
+| `VITE_KWSTUDIO_API_URL` | API Worker base URL |
 
 ## 2. Migration order
 
 Apply all migrations in numeric order via Supabase CLI or dashboard:
 
 ```
-001 → 002 → … → 026 → 027_production_hardening → 028_performance_indexes
+001 → 002 → … → 026 → 027_production_hardening → 028_performance_indexes → 029_database_integrity → 030_drop_remaining_demo_policies → 031_finance_table_lockdown
 ```
 
 Verify after apply:
@@ -49,16 +49,20 @@ Verify after apply:
 - `anon` has no `SELECT` on leads/finance tables
 - `enquiries` table exists with insert-only policy
 - Partial unique indexes on `document_distributions` and `asset_requests`
+- Journal balancing trigger on posted entries
+- Unique verification numbers (non-null)
+- Document immutability after publish/sign
+- VAT lock integrity triggers
 
 ## 3. Deployment order
 
 1. Apply Supabase migrations
 2. Configure storage buckets (see below)
 3. Configure Supabase Auth email templates
-4. Deploy API Worker with required env vars
+4. Deploy API Worker with required env vars (`npm run build` then `npm start`)
 5. Install Playwright browsers on API Worker host
-6. Deploy frontend
-7. Run post-deployment verification (section 8)
+6. Deploy frontend (`npm run build` then serve `build/server/index.js`)
+7. Run post-deployment verification (section 9)
 
 ## 4. Supabase setup
 
@@ -81,15 +85,19 @@ All buckets must be **private** (no public access):
 
 Access is via signed URLs or service-role download only. Buckets are auto-created by API Worker on first use if missing.
 
-## 6. SMTP
+## 6. SMTP and email deliverability
 
 For production document email:
 
 1. Set `DOCUMENT_EMAIL_MODE=smtp`
 2. Configure SMTP credentials
-3. Verify SPF, DKIM, DMARC for sending domain
+3. Verify DNS records for the sending domain:
+   - **SPF** — authorize your SMTP provider to send on behalf of your domain
+   - **DKIM** — sign outbound mail with a provider-supplied public key in DNS
+   - **DMARC** — publish a policy (`p=none` initially, tighten after monitoring)
 4. Send test document email from admin
 5. Confirm `document_email_sent` event recorded
+6. Monitor bounces via SMTP provider dashboard; failed sends record `document_email_failed` without marking distribution as sent
 
 ## 7. Playwright (PDF generation)
 
@@ -107,12 +115,18 @@ Verify PDF generation:
 
 ## 8. Backup strategy
 
+See [BACKUP_AND_RECOVERY.md](./BACKUP_AND_RECOVERY.md) for full restore procedures.
+
 - **Database:** Enable Supabase daily backups; test restore quarterly
 - **Storage:** Enable bucket versioning or periodic export for `document-pdfs` and `signature-artifacts`
 - **Secrets:** Store in host secret manager; never commit to git
 - **Code:** Tag releases; keep migration history in git
 
-## 9. Post-deployment verification
+## 9. Monitoring
+
+See [MONITORING.md](./MONITORING.md) for recommended uptime, logging, and error tracking setup.
+
+## 10. Post-deployment verification
 
 ### Health
 
@@ -127,6 +141,7 @@ Expect `database: ok`, `storage: ok`, `pdf: ok`, valid `emailMode`.
 | Test | Expected |
 |------|----------|
 | RLS blocks anon access to leads | Direct Supabase anon query on `leads` fails |
+| RLS blocks anon access to finance VAT | Anon query on `finance_vat_periods` fails (see note below) |
 | Portal tenant isolation | Client A cannot access Client B project/documents |
 | Admin authorization | Portal client JWT rejected on `/finance/*` |
 | QR signing | Mobile signing flow completes |
@@ -141,7 +156,15 @@ Expect `database: ok`, `storage: ok`, `pdf: ok`, valid `emailMode`.
 | Backups enabled | Supabase dashboard shows backup schedule |
 | Auth templates | Invite and password reset emails deliver |
 
-## 10. Manual sign-off
+**Anon RLS verification:** Run with the **anon key** (browser console or REST client), not the Supabase SQL Editor. The SQL Editor uses the `postgres` role and bypasses RLS — a `count` of 1 there does not mean anon can read the table.
+
+```js
+// Browser console on your site (uses VITE_SUPABASE_ANON_KEY)
+const { count, error } = await supabase.from('finance_vat_periods').select('*', { count: 'exact', head: true });
+// Expected after 030+031: error (permission denied) or count 0
+```
+
+## 11. Manual sign-off
 
 - [ ] RLS blocks anon access
 - [ ] Portal tenant isolation verified
