@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { NotificationBell } from "~/components/notifications/NotificationBell";
 import { PortalActivity } from "~/components/portal/PortalActivity";
 import { PortalDashboardLayout } from "~/components/portal/PortalAuthLayout";
 import { PortalChecklist } from "~/components/portal/PortalChecklist";
@@ -44,6 +45,7 @@ function mapProjectsToSummaries(projects: PortalProjectDto[]): PortalProjectSumm
 
 export default function PortalDashboardPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { session, loading, me, error, signOut } = usePortalAuth();
   const userProfile = useUserProfile(Boolean(session) && isPortalApiConfigured);
   const [projects, setProjects] = useState<PortalProjectDto[]>([]);
@@ -88,7 +90,10 @@ export default function PortalDashboardPage() {
 
       if (result.ok && result.data?.projects) {
         setProjects(result.data.projects);
-        setSelectedProjectId((current) => current ?? pickPrimaryProjectId(result.data!.projects));
+        const fromQuery = searchParams.get("projectId");
+        setSelectedProjectId((current) =>
+          fromQuery ?? current ?? pickPrimaryProjectId(result.data!.projects),
+        );
       } else {
         setProjects([]);
         setProjectsError(result.error ?? "Could not load your projects.");
@@ -100,7 +105,12 @@ export default function PortalDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, searchParams]);
+
+  useEffect(() => {
+    const fromQuery = searchParams.get("projectId");
+    if (fromQuery) setSelectedProjectId(fromQuery);
+  }, [searchParams]);
 
   const loadDashboard = useCallback(async (projectId: string, options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -140,6 +150,13 @@ export default function PortalDashboardPage() {
     >
       Sign out
     </button>
+  );
+
+  const headerActions = (
+    <div className="flex shrink-0 items-center gap-2">
+      <NotificationBell audience="client" enabled={Boolean(session)} />
+      {signOutButton}
+    </div>
   );
 
   async function handleCompleteAction(actionId: string) {
@@ -225,7 +242,7 @@ export default function PortalDashboardPage() {
   return (
     <PortalDashboardLayout
       companyName={me.client?.company_name ?? "Client portal"}
-      action={signOutButton}
+      action={headerActions}
     >
       <div className="space-y-6 md:space-y-8">
         {projectsError ? (

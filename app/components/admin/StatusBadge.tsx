@@ -128,6 +128,16 @@ function autoLabel(status: string): string {
 // Complete status registry — keys are always lowercase_underscore.
 // Unknown statuses fall back to a neutral gray badge with an auto-formatted label.
 const STATUS_MAP: Record<string, StatusConfig> = {
+  // Document lifecycle
+  generated: { label: "Generated", color: "primary", icon: FileText },
+  sent:      { label: "Sent",      color: "indigo",  icon: Send },
+  viewed:    { label: "Viewed",    color: "info",    icon: Eye },
+  approved:  { label: "Approved",  color: "success", icon: BadgeCheck },
+  signed:    { label: "Signed",    color: "success", icon: BadgeCheck },
+  rejected:  { label: "Rejected",  color: "error",   icon: XCircle },
+  expired:   { label: "Expired",   color: "warning", icon: Clock },
+  published: { label: "Published", color: "success", icon: CheckCircle2 },
+
   // Finance — owner expenses
   draft:                { label: "Draft",                color: "light",   icon: Circle },
   posted:               { label: "Posted",               color: "primary", icon: CheckCircle2 },

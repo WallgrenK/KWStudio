@@ -4,6 +4,7 @@ import {
   Banknote,
   Bot,
   BriefcaseBusiness,
+  FileText,
   Globe2,
   FolderKanban,
   LayoutDashboard,
@@ -43,6 +44,12 @@ const navSections: NavSection[] = [
         path: "/admin/projects",
         icon: <FolderKanban />,
         activePaths: ["/admin/projects", "/admin/tasks", "/admin/files"],
+      },
+      {
+        name: "Documents",
+        path: "/admin/documents",
+        icon: <FileText />,
+        activePaths: ["/admin/documents"],
       },
       { name: "Clients", path: "/admin/clients", icon: <BriefcaseBusiness /> },
       {

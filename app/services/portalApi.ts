@@ -15,11 +15,17 @@ import type {
   PortalServiceDto,
   WorkflowClientActionDto,
 } from "~/types/workflow";
+import type {
+  NotificationDto,
+  NotificationsListResponse,
+  UnreadCountResponse,
+} from "~/types/notifications";
 
 type ApiResult<T> = {
   ok: boolean;
   data?: T;
   error?: string;
+  code?: string;
   status?: number;
 };
 
@@ -40,7 +46,7 @@ async function getAccessToken() {
   return session?.access_token ?? null;
 }
 
-async function requestPortalApi<T>(
+export async function requestPortalApi<T>(
   path: string,
   options: {
     method?: "GET" | "POST" | "PATCH";
@@ -70,7 +76,7 @@ async function requestPortalApi<T>(
         : {}),
     });
 
-    const data = await response.json().catch(() => null) as T | { error?: string } | null;
+    const data = await response.json().catch(() => null) as T | { error?: string; code?: string } | null;
 
     if (!response.ok) {
       return {
@@ -79,6 +85,10 @@ async function requestPortalApi<T>(
         error: data && typeof data === "object" && "error" in data && data.error
           ? String(data.error)
           : `Portal API request failed with ${response.status}.`,
+        code:
+          data && typeof data === "object" && "code" in data && data.code
+            ? String(data.code)
+            : undefined,
       };
     }
 
@@ -256,6 +266,28 @@ export function completeProjectClientActionAdmin(projectId: string, actionId: st
 export function initProjectWorkflow(projectId: string, templateId?: string) {
   const query = templateId ? `?templateId=${encodeURIComponent(templateId)}` : "";
   return requestPortalApi<{ ok: true }>(`/portal/admin/projects/${projectId}/workflow/init${query}`, {
+    method: "POST",
+    body: {},
+  });
+}
+
+export function getNotifications() {
+  return requestPortalApi<NotificationsListResponse>("/portal/notifications");
+}
+
+export function getUnreadNotificationCount() {
+  return requestPortalApi<UnreadCountResponse>("/portal/notifications/unread-count");
+}
+
+export function markNotificationRead(notificationId: string) {
+  return requestPortalApi<{ ok: true; notification: NotificationDto }>(
+    `/portal/notifications/${notificationId}/read`,
+    { method: "POST", body: {} },
+  );
+}
+
+export function markAllNotificationsRead() {
+  return requestPortalApi<{ ok: true; updatedCount: number }>("/portal/notifications/read-all", {
     method: "POST",
     body: {},
   });
