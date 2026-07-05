@@ -24,6 +24,7 @@ import { StatusBadge } from "~/components/admin/StatusBadge";
 import { TaskList } from "~/components/admin/TaskList";
 import { Timeline } from "~/components/admin/Timeline";
 import { PortalAccessPanel } from "~/components/admin/clients/PortalAccessPanel";
+import { AdminGlobalFilesPanel } from "~/components/admin/AdminGlobalFilesPanel";
 import { LeadPreviewPanel } from "~/components/admin/leads/LeadPreviewPanel";
 import { type RecommendedPackageName } from "~/components/admin/leads/LeadRecommendedPackage";
 import { type LeadScoreBreakdownItem } from "~/components/admin/leads/LeadScoreBreakdown";
@@ -1845,10 +1846,8 @@ export function ClientsPage() {
 
 export function FilesPage() {
   return (
-    <AdminShell title="Files" description="Shared client assets, reports and handoff documents.">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {files.map((file) => <Panel key={file.id} title={file.name}><p className="text-sm text-gray-500">{file.client} - {file.type}</p><p className="mt-4 text-sm font-medium text-gray-800">{file.size}</p><p className="mt-1 text-xs text-gray-400">Updated {file.updated}</p></Panel>)}
-      </div>
+    <AdminShell title="Files" description="Shared client assets across all projects.">
+      <AdminGlobalFilesPanel />
     </AdminShell>
   );
 }
