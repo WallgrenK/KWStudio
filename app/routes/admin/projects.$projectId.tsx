@@ -4,6 +4,7 @@ import { AdminShell } from "~/components/admin/AdminShell";
 import { EmptyState } from "~/components/admin/EmptyState";
 import { ProjectWorkflowPanel } from "~/components/admin/projects/ProjectWorkflowPanel";
 import { ProjectAssetsPanel } from "~/components/admin/projects/ProjectAssetsPanel";
+import { ProjectConversationsPanel } from "~/components/admin/projects/ProjectConversationsPanel";
 import { getAdminProjectDashboard, isPortalApiConfigured } from "~/services/portalApi";
 
 export default function AdminProjectWorkflowPage() {
@@ -42,6 +43,9 @@ export default function AdminProjectWorkflowPage() {
       <ProjectWorkflowPanel projectId={projectId} />
       <div className="mt-8">
         <ProjectAssetsPanel projectId={projectId} />
+      </div>
+      <div className="mt-8">
+        <ProjectConversationsPanel projectId={projectId} />
       </div>
     </AdminShell>
   );

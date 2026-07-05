@@ -8,6 +8,7 @@ import {
   Globe2,
   FolderKanban,
   LayoutDashboard,
+  MessageSquare,
   Settings,
   Users,
 } from "lucide-react";
@@ -43,7 +44,13 @@ const navSections: NavSection[] = [
         name: "Projects",
         path: "/admin/projects",
         icon: <FolderKanban />,
-        activePaths: ["/admin/projects", "/admin/tasks", "/admin/files"],
+        activePaths: ["/admin/projects", "/admin/tasks", "/admin/files", "/admin/messages"],
+      },
+      {
+        name: "Messages",
+        path: "/admin/messages",
+        icon: <MessageSquare />,
+        activePaths: ["/admin/messages"],
       },
       {
         name: "Documents",

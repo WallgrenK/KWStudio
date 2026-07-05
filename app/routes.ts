@@ -22,6 +22,7 @@ export default [
     route("admin/tasks", "routes/admin/tasks.tsx"),
     route("admin/clients", "routes/admin/clients.tsx"),
     route("admin/files", "routes/admin/files.tsx"),
+    route("admin/messages", "routes/admin/messages.tsx"),
     route("admin/websites", "routes/admin/websites.tsx"),
     route("admin/reports", "routes/admin/reports.tsx"),
     route("admin/analyzer", "routes/admin/analyzer.tsx"),
